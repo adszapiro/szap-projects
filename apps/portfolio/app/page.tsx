@@ -39,19 +39,19 @@ export default function Home() {
     "Spanish (Proficient)"
   ];
 
-  // Projects array - we'll add live links as we build them!
+  // Projects array - live links to deployed apps!
   const projects = [
     {
       title: "Portfolio Website",
       description: "My personal portfolio built with Next.js and Tailwind CSS. A showcase of my journey into software development.",
       tech: "Next.js, React, Tailwind CSS, TypeScript",
-      link: "/" // This site!
+      link: "https://portfolio-adszapiro.vercel.app"
     },
     {
       title: "Todo App",
-      description: "A task management app with categories, priorities, and local storage persistence. Coming soon!",
+      description: "A task management app with categories, priorities, and local storage persistence. Add tasks, mark complete, filter by status.",
       tech: "React, TypeScript, Local Storage",
-      link: null // Will add when built
+      link: "https://alexszapiro-to-do.vercel.app"
     },
     {
       title: "Expense Tracker",
