@@ -1,23 +1,12 @@
 // ============================================
-// Todo App - Learning useState, Forms, and Local Storage
+// Todo App - Now with Supabase Database!
 // ============================================
+// Tasks are stored in a real database and sync in real-time
 
-// "use client" tells Next.js this component runs in the browser
-// We need this because useState only works in the browser
 "use client";
 
 import { useState, useEffect } from "react";
-
-// ============================================
-// TypeScript Interface - Define the shape of a Todo
-// ============================================
-interface Todo {
-  id: number;
-  text: string;
-  completed: boolean;
-  category: "personal" | "work" | "shopping" | "other";
-  createdAt: Date;
-}
+import { supabase, Todo } from "@/lib/supabase";
 
 // Category colors for visual distinction
 const categoryColors = {
@@ -29,91 +18,152 @@ const categoryColors = {
 
 export default function TodoApp() {
   // ============================================
-  // STATE - Data that changes over time
+  // STATE
   // ============================================
-  
-  // useState returns [currentValue, functionToUpdateValue]
-  // When you call the update function, React re-renders the component
-  
-  const [todos, setTodos] = useState<Todo[]>([]); // Array of todos
-  const [inputText, setInputText] = useState(""); // Text in the input field
-  const [category, setCategory] = useState<Todo["category"]>("personal"); // Selected category
-  const [filter, setFilter] = useState<"all" | "active" | "completed">("all"); // Filter view
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [category, setCategory] = useState<Todo["category"]>("personal");
+  const [dueDate, setDueDate] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [loading, setLoading] = useState(true);
 
   // ============================================
-  // useEffect - Run code when component loads
+  // FETCH TODOS FROM SUPABASE
   // ============================================
-  // Load todos from localStorage when the app starts
-  useEffect(() => {
-    const savedTodos = localStorage.getItem("todos");
-    if (savedTodos) {
-      setTodos(JSON.parse(savedTodos));
+  const fetchTodos = async () => {
+    const { data, error } = await supabase
+      .from("todos")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching todos:", error);
+    } else {
+      setTodos(data || []);
     }
-  }, []); // Empty array means "run once when component mounts"
-
-  // Save todos to localStorage whenever they change
-  useEffect(() => {
-    if (todos.length > 0) {
-      localStorage.setItem("todos", JSON.stringify(todos));
-    }
-  }, [todos]); // Run whenever 'todos' changes
-
-  // ============================================
-  // FUNCTIONS - Handle user actions
-  // ============================================
-  
-  // Add a new todo
-  const addTodo = (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent page refresh on form submit
-    
-    if (inputText.trim() === "") return; // Don't add empty todos
-    
-    const newTodo: Todo = {
-      id: Date.now(), // Simple unique ID using timestamp
-      text: inputText.trim(),
-      completed: false,
-      category: category,
-      createdAt: new Date(),
-    };
-    
-    // Update state with new todo
-    // We create a NEW array with all old todos plus the new one
-    setTodos([...todos, newTodo]);
-    setInputText(""); // Clear the input
+    setLoading(false);
   };
 
-  // Toggle todo completion
-  const toggleTodo = (id: number) => {
-    setTodos(
-      todos.map((todo) =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
+  // ============================================
+  // REAL-TIME SUBSCRIPTION
+  // ============================================
+  useEffect(() => {
+    // Fetch initial todos
+    fetchTodos();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel("todos-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "todos" },
+        (payload) => {
+          console.log("Real-time update:", payload);
+          
+          if (payload.eventType === "INSERT") {
+            setTodos((prev) => [payload.new as Todo, ...prev]);
+          } else if (payload.eventType === "UPDATE") {
+            setTodos((prev) =>
+              prev.map((todo) =>
+                todo.id === payload.new.id ? (payload.new as Todo) : todo
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setTodos((prev) => prev.filter((todo) => todo.id !== payload.old.id));
+          }
+        }
       )
-    );
-  };
+      .subscribe();
 
-  // Delete a todo
-  const deleteTodo = (id: number) => {
-    setTodos(todos.filter((todo) => todo.id !== id));
-  };
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
-  // Clear all completed todos
-  const clearCompleted = () => {
-    setTodos(todos.filter((todo) => !todo.completed));
+  // ============================================
+  // ADD TODO
+  // ============================================
+  const addTodo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputText.trim() === "") return;
+
+    const { error } = await supabase.from("todos").insert({
+      text: inputText.trim(),
+      category: category,
+      due_date: dueDate || null,
+      source: "manual",
+    });
+
+    if (error) {
+      console.error("Error adding todo:", error);
+    } else {
+      setInputText("");
+      setDueDate("");
+    }
   };
 
   // ============================================
-  // FILTERED TODOS - Computed from state
+  // TOGGLE TODO COMPLETION
+  // ============================================
+  const toggleTodo = async (id: string, completed: boolean) => {
+    const { error } = await supabase
+      .from("todos")
+      .update({ completed: !completed })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating todo:", error);
+    }
+  };
+
+  // ============================================
+  // DELETE TODO
+  // ============================================
+  const deleteTodo = async (id: string) => {
+    const { error } = await supabase.from("todos").delete().eq("id", id);
+
+    if (error) {
+      console.error("Error deleting todo:", error);
+    }
+  };
+
+  // ============================================
+  // CLEAR COMPLETED
+  // ============================================
+  const clearCompleted = async () => {
+    const { error } = await supabase
+      .from("todos")
+      .delete()
+      .eq("completed", true);
+
+    if (error) {
+      console.error("Error clearing completed:", error);
+    }
+  };
+
+  // ============================================
+  // FILTERED TODOS
   // ============================================
   const filteredTodos = todos.filter((todo) => {
     if (filter === "active") return !todo.completed;
     if (filter === "completed") return todo.completed;
-    return true; // "all"
+    return true;
   });
 
   const activeTodoCount = todos.filter((todo) => !todo.completed).length;
 
   // ============================================
-  // RENDER - The UI
+  // FORMAT DATE FOR DISPLAY
+  // ============================================
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  // ============================================
+  // RENDER
   // ============================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
@@ -124,14 +174,16 @@ export default function TodoApp() {
             Todo App
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Stay organized and get things done
+            Synced with Supabase • Real-time updates
+          </p>
+          <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+            ✓ Connected to database
           </p>
         </header>
 
         {/* Add Todo Form */}
         <form onSubmit={addTodo} className="mb-6">
           <div className="flex gap-2 mb-3">
-            {/* Text Input */}
             <input
               type="text"
               value={inputText}
@@ -139,12 +191,19 @@ export default function TodoApp() {
               placeholder="What needs to be done?"
               className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            
-            {/* Category Select */}
+            <button
+              type="submit"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Add
+            </button>
+          </div>
+          
+          <div className="flex gap-2">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Todo["category"])}
-              className="px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="personal">Personal</option>
               <option value="work">Work</option>
@@ -152,13 +211,13 @@ export default function TodoApp() {
               <option value="other">Other</option>
             </select>
             
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Add
-            </button>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Due date"
+            />
           </div>
         </form>
 
@@ -181,7 +240,11 @@ export default function TodoApp() {
 
         {/* Todo List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-          {filteredTodos.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              Loading todos...
+            </div>
+          ) : filteredTodos.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-gray-400">
               {filter === "all"
                 ? "No todos yet. Add one above!"
@@ -198,7 +261,7 @@ export default function TodoApp() {
                 >
                   {/* Checkbox */}
                   <button
-                    onClick={() => toggleTodo(todo.id)}
+                    onClick={() => toggleTodo(todo.id, todo.completed)}
                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                       todo.completed
                         ? "bg-green-500 border-green-500 text-white"
@@ -212,18 +275,26 @@ export default function TodoApp() {
                     )}
                   </button>
 
-                  {/* Todo Text & Category */}
+                  {/* Todo Text & Details */}
                   <div className="flex-1">
-                    <p
-                      className={`text-gray-900 dark:text-white ${
-                        todo.completed ? "line-through text-gray-400 dark:text-gray-500" : ""
-                      }`}
-                    >
+                    <p className={`text-gray-900 dark:text-white ${todo.completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
                       {todo.text}
                     </p>
-                    <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${categoryColors[todo.category]}`}>
-                      {todo.category}
-                    </span>
+                    <div className="flex gap-2 mt-1">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${categoryColors[todo.category]}`}>
+                        {todo.category}
+                      </span>
+                      {todo.due_date && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Due: {formatDate(todo.due_date)}
+                        </span>
+                      )}
+                      {todo.source === "email" && (
+                        <span className="text-xs text-blue-500 dark:text-blue-400">
+                          📧 from email
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Delete Button */}
@@ -261,12 +332,10 @@ export default function TodoApp() {
         {/* Back to Portfolio Link */}
         <div className="text-center mt-8">
           <a
-            href="https://github.com/adszapiro"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="https://portfolio-adszapiro.vercel.app"
             className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm"
           >
-            Built by Alex Szapiro
+            ← Back to Portfolio
           </a>
         </div>
       </div>
