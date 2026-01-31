@@ -1,6 +1,7 @@
 {
-  "name": "with-tailwind",
+  "name": "szap-projects",
   "private": true,
+  "description": "Alex Szapiro's project portfolio - a monorepo of web applications",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
