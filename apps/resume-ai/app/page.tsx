@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { FileText, Sparkles, Upload, ArrowRight, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useCallback } from "react";
+import { FileText, Sparkles, Upload, ArrowRight, CheckCircle, AlertCircle, Loader2, RotateCcw, Zap } from "lucide-react";
 
 interface Suggestion {
   type: "improvement" | "addition" | "warning";
@@ -21,12 +21,70 @@ interface AnalysisResult {
   summary: string;
 }
 
+// Sample data for quick testing (Nielsen #6: Recognition over Recall)
+const SAMPLE_RESUME = `ALEX SZAPIRO
+Software Developer | Ann Arbor, MI
+
+EXPERIENCE
+Software Engineering Intern - TechCorp (Summer 2025)
+• Built React applications with TypeScript for internal dashboard
+• Implemented REST APIs using Node.js and Express
+• Collaborated with senior engineers on code reviews
+
+EDUCATION
+University of Michigan - Economics (2028)
+Minor in Computer Science
+GPA: 3.7/4.0
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, Python, SQL, Git
+
+PROJECTS
+• Portfolio Website - Next.js personal site with 3D graphics
+• Trading Bot - Automated paper trading with Alpaca API`;
+
+const SAMPLE_JOB = `Software Engineer Intern - Summer 2026
+
+About the Role:
+Join our team to build scalable web applications. You'll work with React, TypeScript, and cloud services.
+
+Requirements:
+• Pursuing a degree in Computer Science or related field
+• Experience with React and TypeScript
+• Familiarity with RESTful APIs
+• Strong problem-solving skills
+• Experience with version control (Git)
+
+Nice to Have:
+• Experience with cloud platforms (AWS, GCP)
+• Open source contributions
+• Knowledge of CI/CD pipelines
+• Experience with testing frameworks`;
+
 export default function Home() {
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Load sample data (Nielsen #6: Recognition over Recall)
+  const loadSampleData = useCallback(() => {
+    setResumeText(SAMPLE_RESUME);
+    setJobDescription(SAMPLE_JOB);
+    setError(null);
+    setResult(null);
+  }, []);
+
+  // Clear all data (Nielsen #3: User Control and Freedom)
+  const clearAll = useCallback(() => {
+    setResumeText("");
+    setJobDescription("");
+    setError(null);
+    setResult(null);
+    setAnalysisProgress(0);
+  }, []);
 
   const handleAnalyze = async () => {
     if (!resumeText.trim() || !jobDescription.trim()) {
@@ -37,6 +95,12 @@ export default function Home() {
     setIsAnalyzing(true);
     setError(null);
     setResult(null);
+    setAnalysisProgress(0);
+
+    // Simulate progress for better UX (Nielsen #1: Visibility of System Status)
+    const progressInterval = setInterval(() => {
+      setAnalysisProgress((prev) => Math.min(prev + 10, 90));
+    }, 500);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -45,16 +109,21 @@ export default function Home() {
         body: JSON.stringify({ resumeText, jobDescription }),
       });
 
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
+
       if (!response.ok) {
-        throw new Error("Analysis failed. Please try again.");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Analysis failed. Please try again.");
       }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : "An error occurred. Please check your connection and try again.");
     } finally {
       setIsAnalyzing(false);
+      setTimeout(() => setAnalysisProgress(0), 500);
     }
   };
 
@@ -160,33 +229,88 @@ Nice to have:
           </div>
         </div>
 
-        {/* Analyze Button */}
-        <div className="flex justify-center mb-12">
-          <button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || !resumeText.trim() || !jobDescription.trim()}
-            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 glow"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Analyze & Get Suggestions
-                <ArrowRight className="w-5 h-5" />
-              </>
+        {/* Action Buttons */}
+        <div className="flex flex-col items-center gap-4 mb-12">
+          {/* Progress bar during analysis (Nielsen #1: Visibility of System Status) */}
+          {isAnalyzing && (
+            <div className="w-full max-w-md mb-2">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Analyzing with GPT-4...</span>
+                <span>{analysisProgress}%</span>
+              </div>
+              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+                  style={{ width: `${analysisProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-center gap-3">
+            {/* Sample Data Button */}
+            <button
+              onClick={loadSampleData}
+              disabled={isAnalyzing}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg transition-colors text-sm"
+              aria-label="Load sample resume and job description"
+            >
+              <Zap className="w-4 h-4" />
+              Try Sample Data
+            </button>
+
+            {/* Analyze Button */}
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || !resumeText.trim() || !jobDescription.trim()}
+              className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 glow"
+              aria-label={isAnalyzing ? "Analysis in progress" : "Analyze resume against job description"}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Analyze & Get Suggestions
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+
+            {/* Clear Button (Nielsen #3: User Control and Freedom) */}
+            {(resumeText || jobDescription || result) && (
+              <button
+                onClick={clearAll}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg transition-colors text-sm"
+                aria-label="Clear all inputs and results"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Clear All
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
-        {/* Error */}
+        {/* Error with Recovery (Nielsen #9: Help Users Recover from Errors) */}
         {error && (
-          <div className="mb-8 p-4 bg-red-900/20 border border-red-800 rounded-xl flex items-center gap-3 text-red-400">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            {error}
+          <div className="mb-8 p-4 bg-red-900/20 border border-red-800 rounded-xl">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-red-400 font-medium">Analysis Failed</p>
+                <p className="text-red-400/80 text-sm mt-1">{error}</p>
+              </div>
+              <button
+                onClick={handleAnalyze}
+                className="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-200 rounded-lg text-sm transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         )}
 

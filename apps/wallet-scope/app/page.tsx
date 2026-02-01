@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Wallet, 
   Search, 
@@ -13,7 +13,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  X,
+  HelpCircle,
+  RotateCcw
 } from "lucide-react";
 
 interface TokenBalance {
@@ -42,15 +46,71 @@ interface WalletAnalysis {
   activityLevel: "low" | "medium" | "high";
 }
 
+interface RecentSearch {
+  address: string;
+  timestamp: number;
+}
+
+// Risk score explanations (Norman: Conceptual Models)
+const RISK_EXPLANATIONS = {
+  high: "Score 0-39: High concentration in few assets, volatile tokens, or suspicious activity patterns.",
+  medium: "Score 40-69: Moderate diversification with some risk factors to consider.",
+  low: "Score 70-100: Well-diversified portfolio with stable assets and healthy activity."
+};
+
 export default function Home() {
   const [address, setAddress] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<WalletAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [showRiskTooltip, setShowRiskTooltip] = useState(false);
+
+  // Load recent searches from localStorage (Nielsen #6: Recognition over Recall)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("walletscope-recent");
+      if (saved) {
+        setRecentSearches(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Failed to load recent searches", e);
+    }
+  }, []);
+
+  // Save to recent searches
+  const saveRecentSearch = useCallback((addr: string) => {
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((s) => s.address !== addr);
+      const updated = [{ address: addr, timestamp: Date.now() }, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem("walletscope-recent", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save recent search", e);
+      }
+      return updated;
+    });
+  }, []);
+
+  // Clear recent searches (Nielsen #3: User Control and Freedom)
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem("walletscope-recent");
+    } catch (e) {
+      console.error("Failed to clear recent searches", e);
+    }
+  }, []);
 
   const handleAnalyze = async () => {
     if (!address.trim()) {
       setError("Please enter a wallet address");
+      return;
+    }
+
+    // Validate address format
+    if (!address.trim().match(/^0x[a-fA-F0-9]{40}$/)) {
+      setError("Invalid Ethereum address format. Address should start with 0x followed by 40 hex characters.");
       return;
     }
 
@@ -72,8 +132,9 @@ export default function Home() {
 
       const data = await response.json();
       setResult(data);
+      saveRecentSearch(address.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : "An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -184,11 +245,61 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Error */}
+        {/* Recent Searches (Nielsen #6: Recognition over Recall) */}
+        {recentSearches.length > 0 && !result && !isLoading && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Recent Searches
+              </span>
+              <button
+                onClick={clearRecentSearches}
+                className="text-xs text-gray-500 hover:text-gray-400"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {recentSearches.map((search) => (
+                <button
+                  key={search.address}
+                  onClick={() => setAddress(search.address)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-mono transition-colors"
+                >
+                  {search.address.slice(0, 6)}...{search.address.slice(-4)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Error with Recovery (Nielsen #9: Help Users Recover from Errors) */}
         {error && (
-          <div className="max-w-2xl mx-auto mb-8 p-4 bg-red-900/20 border border-red-800 rounded-xl flex items-center gap-3 text-red-400">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-            {error}
+          <div className="max-w-2xl mx-auto mb-8 p-4 bg-red-900/20 border border-red-800 rounded-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 text-red-400 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-red-400 font-medium">Analysis Failed</p>
+                <p className="text-red-400/80 text-sm mt-1">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-300"
+                aria-label="Dismiss error"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={handleAnalyze}
+                className="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-200 rounded-lg text-sm transition-colors flex items-center gap-2"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Try Again
+              </button>
+            </div>
           </div>
         )}
 
@@ -208,11 +319,18 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Risk Score */}
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+              {/* Risk Score with Tooltip (Norman: Conceptual Models) */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 relative">
                 <div className="flex items-center gap-2 text-gray-400 mb-2">
                   <Shield className="w-4 h-4" />
                   <span className="text-sm">Risk Score</span>
+                  <button
+                    onClick={() => setShowRiskTooltip(!showRiskTooltip)}
+                    className="text-gray-500 hover:text-gray-400"
+                    aria-label="Learn about risk score"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
                 </div>
                 <p className={`text-2xl font-bold ${getRiskColor(result.riskScore)}`}>
                   {result.riskScore}/100
@@ -220,6 +338,33 @@ export default function Home() {
                 <p className={`text-sm ${getRiskColor(result.riskScore)}`}>
                   {getRiskLabel(result.riskScore)}
                 </p>
+                
+                {/* Risk Tooltip */}
+                {showRiskTooltip && (
+                  <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-300 z-10 shadow-lg">
+                    <p className="font-medium text-white mb-2">How Risk Score Works:</p>
+                    <ul className="space-y-1.5">
+                      <li className="flex items-start gap-2">
+                        <span className="text-green-400">70-100:</span>
+                        <span>Low risk - well diversified</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-yellow-400">40-69:</span>
+                        <span>Medium risk - some concerns</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-400">0-39:</span>
+                        <span>High risk - concentration issues</span>
+                      </li>
+                    </ul>
+                    <button
+                      onClick={() => setShowRiskTooltip(false)}
+                      className="mt-2 text-gray-500 hover:text-gray-400 text-xs"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Diversification */}
