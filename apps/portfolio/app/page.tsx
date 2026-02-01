@@ -3,10 +3,10 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
-import ProjectCard from "@/components/ProjectCard";
+import ProjectAccordion from "@/components/ProjectAccordion";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
-import { getFeaturedProjects, getStandardProjects } from "@/data/projects";
+import { getAllProjects } from "@/data/projects";
 import { motion } from "framer-motion";
 
 export default function Home() {
@@ -21,8 +21,7 @@ export default function Home() {
     "APIs",
   ];
 
-  const featuredProjects = getFeaturedProjects();
-  const standardProjects = getStandardProjects();
+  const projects = getAllProjects();
 
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
@@ -35,7 +34,7 @@ export default function Home() {
       
       <Header />
 
-      <main id="main-content" className="max-w-4xl mx-auto px-6" role="main">
+      <main id="main-content" className="max-w-3xl mx-auto px-6" role="main">
         <Hero />
 
         <About />
@@ -74,51 +73,22 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-2xl font-semibold text-[var(--text)] mb-8"
+            className="text-2xl font-semibold text-[var(--text)] mb-4"
           >
             Projects
           </motion.h2>
 
-          <div className="grid gap-4 md:grid-cols-2 mb-8">
-            {featuredProjects.map((project, i) => (
-              <motion.div
-                key={project.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <ProjectCard
-                  title={project.title}
-                  description={project.description}
-                  tech={project.tech}
-                  link={project.link}
-                  status={project.status}
-                  featured={true}
-                />
-              </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="border-t border-[var(--border)]"
+          >
+            {projects.map((project) => (
+              <ProjectAccordion key={project.title} project={project} />
             ))}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            {standardProjects.map((project, i) => (
-              <motion.div
-                key={project.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.03 }}
-              >
-                <ProjectCard
-                  title={project.title}
-                  description={project.description}
-                  tech={project.tech}
-                  link={project.link}
-                  status={project.status}
-                />
-              </motion.div>
-            ))}
-          </div>
+          </motion.div>
         </section>
 
         <Contact />
