@@ -1,0 +1,54 @@
+---
+description: Checklist for creating new projects in the monorepo
+globs: apps/*/package.json
+alwaysApply: true
+---
+
+# New Project Checklist
+
+EVERY TIME a new project is created in `apps/` or `packages/`, you MUST:
+
+## 1. Add to Portfolio (REQUIRED)
+
+Edit `apps/portfolio/data/projects.ts` and add the new project to the `projects` array:
+
+```typescript
+{
+  title: "Project Name",
+  description: "Short description of what it does",
+  tech: "Tech1, Tech2, Tech3",
+  link: "https://deployed-url.vercel.app",  // or null if not deployed
+  status: "live",  // or "in-progress" or "coming-soon"
+  featured: true,
+  repo: "https://github.com/adszapiro/szap-projects",
+  icon: "🚀"  // Use appropriate emoji
+}
+```
+
+## 2. Deploy to Vercel
+
+```bash
+cd apps/NEW_PROJECT_NAME
+vercel --prod --yes
+```
+
+## 3. Update Portfolio URL
+
+After deployment, update the `link` field in `projects.ts` with the actual Vercel URL.
+
+## 4. Redeploy Portfolio
+
+```bash
+cd apps/portfolio
+vercel --prod --yes
+```
+
+## 5. Commit and Push
+
+```bash
+git add -A
+git commit -m "Add NEW_PROJECT_NAME to portfolio"
+git push
+```
+
+## NEVER forget these steps!

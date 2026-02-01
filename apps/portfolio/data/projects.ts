@@ -17,6 +17,16 @@ export interface Project {
 
 export const projects: Project[] = [
   {
+    title: "API Tester",
+    description: "Postman-like tool for testing REST APIs in your browser. Send requests, view responses, manage headers.",
+    tech: "Next.js, TypeScript, Tailwind CSS",
+    link: "https://api-tester-two-teal.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "🔌"
+  },
+  {
     title: "szap-cli",
     description: "CLI tool for scaffolding projects. Create Next.js apps, APIs, and libraries with best practices in seconds.",
     tech: "Node.js, TypeScript, Commander, Inquirer, Chalk",
