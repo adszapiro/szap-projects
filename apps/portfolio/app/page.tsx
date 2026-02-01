@@ -3,175 +3,132 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
-import SkillBadge from "@/components/SkillBadge";
 import ProjectCard from "@/components/ProjectCard";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
-import AnimatedCard from "@/components/AnimatedCard";
-import { getFeaturedProjects } from "@/data/projects";
+import { getFeaturedProjects, getStandardProjects } from "@/data/projects";
 import { motion } from "framer-motion";
 
 export default function Home() {
-  // Technical skills
-  const techSkills = [
-    "JavaScript",
-    "TypeScript", 
+  const skills = [
+    "TypeScript",
     "React",
     "Next.js",
     "Node.js",
-    "Tailwind CSS",
-    "Three.js",
+    "Python",
+    "Tailwind",
     "Git",
+    "APIs",
   ];
 
-  // Finance & business skills
-  const businessSkills = [
-    "Excel",
-    "FactSet",
-    "Data Analysis",
-    "Spanish (Proficient)"
-  ];
-
-  // Get featured projects from centralized data file
-  const projects = getFeaturedProjects();
+  const featuredProjects = getFeaturedProjects();
+  const standardProjects = getStandardProjects();
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Skip to main content link for accessibility (Nielsen #7) */}
+    <div className="min-h-screen bg-[#0a0f1a] text-white">
+      {/* Skip link */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-purple-600 focus:text-white focus:rounded-lg"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg"
       >
         Skip to main content
       </a>
       
-      {/* Header - Fixed navigation at top */}
       <Header />
 
-      {/* Main content area */}
-      <main id="main-content" className="max-w-5xl mx-auto px-6" role="main" aria-label="Portfolio content">
-        
-        {/* Hero Section - With 3D background */}
+      <main id="main-content" className="max-w-4xl mx-auto px-6" role="main">
         <Hero />
 
-        {/* About Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-        >
-          <About />
-        </motion.div>
+        <About />
 
-        {/* Skills Section */}
-        <section id="skills" className="mb-20 scroll-mt-20">
+        {/* Skills - Simple inline list */}
+        <section id="skills" className="mb-24 scroll-mt-20">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-3xl font-bold text-white mb-8 text-center"
+            className="text-2xl font-semibold text-white mb-6"
           >
-            Skills & Technologies
+            Skills
           </motion.h2>
           
-          {/* Tech Skills */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="mb-8"
+            className="flex flex-wrap gap-2"
           >
-            <h3 className="text-xl font-semibold text-gray-300 mb-4 text-center">
-              Technical Skills
-            </h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {techSkills.map((skill, i) => (
-                <motion.div
-                  key={skill}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <SkillBadge skill={skill} />
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Business & Finance Skills */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            <h3 className="text-xl font-semibold text-gray-300 mb-4 text-center">
-              Finance & Business
-            </h3>
-            <div className="flex flex-wrap justify-center gap-3">
-              {businessSkills.map((skill, i) => (
-                <motion.div
-                  key={skill}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <SkillBadge skill={skill} />
-                </motion.div>
-              ))}
-            </div>
+            {skills.map((skill) => (
+              <span 
+                key={skill}
+                className="px-3 py-1.5 bg-gray-800 text-gray-400 text-sm rounded-lg border border-gray-700"
+              >
+                {skill}
+              </span>
+            ))}
           </motion.div>
         </section>
 
-        {/* Projects Section */}
-        <section id="projects" className="mb-20 scroll-mt-20" aria-labelledby="projects-heading">
+        {/* Projects Section - Two tiers */}
+        <section id="projects" className="mb-24 scroll-mt-20" aria-labelledby="projects-heading">
           <motion.h2 
             id="projects-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-3xl font-bold text-white mb-8 text-center"
+            className="text-2xl font-semibold text-white mb-8"
           >
-            Featured Projects
+            Projects
           </motion.h2>
-          <div 
-            className="grid gap-6 md:grid-cols-2"
-            role="list"
-            aria-label="Project cards"
-          >
-            {projects.map((project, i) => (
-              <div key={project.title} role="listitem">
-                <AnimatedCard delay={i * 0.1}>
-                  <ProjectCard
-                    title={project.title}
-                    description={project.description}
-                    tech={project.tech}
-                    link={project.link}
-                    status={project.status}
-                    icon={project.icon}
-                  />
-                </AnimatedCard>
-              </div>
+
+          {/* Featured Projects - 2x2 grid with more detail */}
+          <div className="grid gap-4 md:grid-cols-2 mb-8">
+            {featuredProjects.map((project, i) => (
+              <motion.div
+                key={project.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <ProjectCard
+                  title={project.title}
+                  description={project.description}
+                  tech={project.tech}
+                  link={project.link}
+                  status={project.status}
+                  featured={true}
+                />
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Standard Projects - Compact 3-column grid */}
+          <div className="grid gap-3 md:grid-cols-3">
+            {standardProjects.map((project, i) => (
+              <motion.div
+                key={project.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.03 }}
+              >
+                <ProjectCard
+                  title={project.title}
+                  description={project.description}
+                  tech={project.tech}
+                  link={project.link}
+                  status={project.status}
+                />
+              </motion.div>
             ))}
           </div>
         </section>
 
-        {/* Contact Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <Contact />
-        </motion.div>
-
+        <Contact />
       </main>
 
-      {/* Footer - Bottom of page */}
       <Footer />
     </div>
   );

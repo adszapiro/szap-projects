@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
+/* Professional color palette - inspired by finance/fintech */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #0a0f1a;
+  --background-secondary: #111827;
+  --foreground: #f9fafb;
+  --foreground-secondary: #9ca3af;
+  --border: #1f2937;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-muted: rgba(59, 130, 246, 0.1);
 }
 
 @theme inline {
@@ -16,36 +23,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Animated gradient text */
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animate-gradient {
-  animation: gradient 3s ease infinite;
-}
-
-/* Custom scrollbar */
+/* Custom scrollbar - more subtle */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: #374151;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: #4b5563;
 }
 
 /* Smooth scroll */
@@ -53,8 +51,14 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Selection color */
+/* Selection color - professional blue */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgba(59, 130, 246, 0.3);
   color: white;
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
