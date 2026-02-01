@@ -1,6 +1,6 @@
 import { askClaude, claudeCritique, claudeAnalyzeResults } from "./claude.js";
 import { askOpenAI, openaiCritique, openaiGenerateStrategy, openaiAnalyzeResults } from "./openai.js";
-import { getTopPatterns, saveDebate, saveLearning } from "../db.js";
+import { getTopPatterns, saveDebate, saveLearning, AssetClass } from "../db.js";
 import { v4 as uuidv4 } from "uuid";
 
 export interface DebateResult {
@@ -11,6 +11,7 @@ export interface DebateResult {
   openaiCritique: string;
   consensus: string;
   finalStrategy: string | null;
+  assetClass: AssetClass;
 }
 
 export interface StrategyProposal {
@@ -21,6 +22,28 @@ export interface StrategyProposal {
   confidence: number;
 }
 
+// Crypto-specific context to help models understand crypto trading
+const CRYPTO_CONTEXT = `
+CRYPTO TRADING CONSIDERATIONS:
+- Market trades 24/7, no closing hours
+- Higher volatility than stocks (expect 5-10% daily swings)
+- Correlations: BTC often leads altcoins, ETH follows BTC
+- Weekend patterns can differ from weekdays
+- News and social sentiment drive short-term moves
+- Consider on-chain metrics if available
+- Liquidity varies by pair (BTC/USD highest)
+`;
+
+const STOCK_CONTEXT = `
+STOCK TRADING CONSIDERATIONS:
+- Market hours: 9:30 AM - 4:00 PM ET, Monday-Friday
+- Pre-market and after-hours have lower liquidity
+- ETFs like SPY track overall market
+- Earnings seasons cause volatility
+- Economic data releases affect market
+- Options expiration (monthly, weekly) affects price action
+`;
+
 /**
  * Main debate protocol between Claude and OpenAI
  * 1. Both models propose strategies
@@ -30,21 +53,27 @@ export interface StrategyProposal {
  */
 export async function debateStrategy(
   requirements: string,
-  marketContext?: string
+  marketContext?: string,
+  assetClass: AssetClass = "stock"
 ): Promise<DebateResult> {
   const sessionId = uuidv4();
-  const patterns = await getTopPatterns(10);
+  const patterns = await getTopPatterns(10, assetClass);
   const patternStrs = patterns.map((p) => `[${p.confidence.toFixed(2)}] ${p.pattern}`);
+  
+  // Add asset-specific context
+  const assetContext = assetClass === "crypto" ? CRYPTO_CONTEXT : STOCK_CONTEXT;
+  const fullContext = `${assetContext}\n\n${marketContext || ""}`;
 
-  console.log(`[Debate ${sessionId.slice(0, 8)}] Starting strategy debate...`);
+  console.log(`[Debate ${sessionId.slice(0, 8)}] Starting ${assetClass.toUpperCase()} strategy debate...`);
 
   // Step 1: Both models propose strategies
+  const assetLabel = assetClass === "crypto" ? "CRYPTO" : "STOCK";
   const [claudeResponse, openaiResponse] = await Promise.all([
     askClaude(
-      `Propose a trading strategy for: ${requirements}`,
-      { patterns: patternStrs, marketData: marketContext }
+      `Propose a ${assetLabel} trading strategy for: ${requirements}`,
+      { patterns: patternStrs, marketData: fullContext }
     ),
-    openaiGenerateStrategy(requirements, { patterns: patternStrs }),
+    openaiGenerateStrategy(`[${assetLabel}] ${requirements}`, { patterns: patternStrs }),
   ]);
 
   await saveDebate(sessionId, "claude", claudeResponse.content);
@@ -102,6 +131,7 @@ Output ONLY the final JavaScript function code.`;
     openaiCritique: openaiCritiqueResp.content,
     consensus: consensusResponse.content,
     finalStrategy,
+    assetClass,
   };
 }
 
@@ -109,17 +139,18 @@ Output ONLY the final JavaScript function code.`;
  * Analyze trade results with both models and update child learnings
  */
 export async function analyzeAndLearn(
-  trades: { symbol: string; side: string; pnl: number; reasoning: string }[]
+  trades: { symbol: string; side: string; pnl: number; reasoning: string }[],
+  assetClass: AssetClass = "stock"
 ): Promise<void> {
   if (trades.length === 0) {
     console.log("[Learner] No trades to analyze");
     return;
   }
 
-  const patterns = await getTopPatterns(20);
+  const patterns = await getTopPatterns(20, assetClass);
   const patternStrs = patterns.map((p) => p.pattern);
 
-  console.log(`[Learner] Analyzing ${trades.length} trades with both models...`);
+  console.log(`[Learner] Analyzing ${trades.length} ${assetClass} trades with both models...`);
 
   // Both models analyze
   const [claudeAnalysis, openaiAnalysis] = await Promise.all([
@@ -128,15 +159,15 @@ export async function analyzeAndLearn(
   ]);
 
   // Extract learnings from both analyses
-  const learnings = extractLearnings(claudeAnalysis.content, "claude");
-  learnings.push(...extractLearnings(openaiAnalysis.content, "openai"));
+  const learnings = extractLearnings(claudeAnalysis.content, "claude", assetClass);
+  learnings.push(...extractLearnings(openaiAnalysis.content, "openai", assetClass));
 
   // Save new learnings
   for (const learning of learnings) {
     await saveLearning(learning);
   }
 
-  console.log(`[Learner] Saved ${learnings.length} new learnings to child model`);
+  console.log(`[Learner] Saved ${learnings.length} new ${assetClass} learnings to child model`);
 }
 
 /**
@@ -144,9 +175,10 @@ export async function analyzeAndLearn(
  */
 function extractLearnings(
   text: string,
-  source: "claude" | "openai"
-): Array<{ pattern: string; context?: string; category?: string; confidence: number }> {
-  const learnings: Array<{ pattern: string; context?: string; category?: string; confidence: number }> = [];
+  source: "claude" | "openai",
+  assetClass: AssetClass = "stock"
+): Array<{ pattern: string; context?: string; category?: string; confidence: number; asset_class: AssetClass }> {
+  const learnings: Array<{ pattern: string; context?: string; category?: string; confidence: number; asset_class: AssetClass }> = [];
 
   // Look for patterns in quotes or after bullet points
   const patternRegex = /"([^"]+)"|•\s*(.+)|[-*]\s*(.+)/g;
@@ -167,6 +199,7 @@ function extractLearnings(
         pattern: pattern.trim(),
         category,
         confidence: 0.5, // Start at neutral, will be adjusted by trade results
+        asset_class: assetClass,
       });
     }
   }

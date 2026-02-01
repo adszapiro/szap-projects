@@ -13,6 +13,8 @@ function getSupabase(): SupabaseClient {
 }
 
 // Types
+export type AssetClass = "stock" | "crypto";
+
 export interface Strategy {
   id: string;
   name: string;
@@ -20,6 +22,8 @@ export interface Strategy {
   code: string;
   source_model: string;
   status: string;
+  asset_class: AssetClass;
+  symbols: string[];
   created_at: string;
 }
 
@@ -40,6 +44,7 @@ export interface ChildLearning {
   context?: string;
   category?: string;
   source_model: string;
+  asset_class: AssetClass;
   confidence: number;
   wins: number;
   losses: number;
@@ -50,11 +55,20 @@ export async function saveStrategy(
   name: string,
   description: string,
   code: string,
-  sourceModel: string
+  sourceModel: string,
+  assetClass: AssetClass = "stock",
+  symbols: string[] = ["SPY"]
 ): Promise<string> {
   const { data, error } = await getSupabase()
     .from("strategies")
-    .insert({ name, description, code, source_model: sourceModel })
+    .insert({ 
+      name, 
+      description, 
+      code, 
+      source_model: sourceModel,
+      asset_class: assetClass,
+      symbols,
+    })
     .select("id")
     .single();
 
@@ -71,12 +85,17 @@ export async function updateStrategyStatus(id: string, status: string): Promise<
   if (error) throw error;
 }
 
-export async function getActiveStrategies(): Promise<Strategy[]> {
-  const { data, error } = await getSupabase()
+export async function getActiveStrategies(assetClass?: AssetClass): Promise<Strategy[]> {
+  let query = getSupabase()
     .from("strategies")
     .select("*")
-    .eq("status", "deployed")
-    .order("created_at", { ascending: false });
+    .eq("status", "deployed");
+  
+  if (assetClass) {
+    query = query.eq("asset_class", assetClass);
+  }
+  
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) throw error;
   return data || [];
@@ -103,10 +122,14 @@ export async function saveTrade(trade: {
   price?: number;
   order_id?: string;
   reasoning?: string;
+  asset_class?: AssetClass;
 }): Promise<string> {
   const { data, error } = await getSupabase()
     .from("agent_trades")
-    .insert(trade)
+    .insert({
+      ...trade,
+      asset_class: trade.asset_class || (trade.symbol.includes("/") ? "crypto" : "stock"),
+    })
     .select("id")
     .single();
 
@@ -167,10 +190,16 @@ export async function saveDebate(
 }
 
 // Child Learnings
-export async function getTopPatterns(limit: number = 10): Promise<ChildLearning[]> {
-  const { data, error } = await getSupabase()
+export async function getTopPatterns(limit: number = 10, assetClass?: AssetClass): Promise<ChildLearning[]> {
+  let query = getSupabase()
     .from("child_learnings")
-    .select("*")
+    .select("*");
+  
+  if (assetClass) {
+    query = query.eq("asset_class", assetClass);
+  }
+  
+  const { data, error } = await query
     .order("confidence", { ascending: false })
     .limit(limit);
 
@@ -184,10 +213,12 @@ export async function saveLearning(learning: {
   category?: string;
   confidence: number;
   source_model?: string;
+  asset_class?: AssetClass;
 }): Promise<void> {
   const { error } = await getSupabase().from("child_learnings").insert({
     ...learning,
     source_model: learning.source_model || "consensus",
+    asset_class: learning.asset_class || "stock",
   });
 
   if (error) throw error;

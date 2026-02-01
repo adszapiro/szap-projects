@@ -11,6 +11,7 @@ import {
   getTodaysTrades,
   saveDailySnapshot,
   log,
+  AssetClass,
 } from "./db.js";
 import {
   getAccount,
@@ -19,7 +20,33 @@ import {
   isMarketOpen,
   placeOrder,
   calculatePositionSize,
+  getCryptoAssets,
+  getCryptoBars,
+  getAssetBars,
+  isCryptoSymbol,
 } from "./executor.js";
+
+// Default crypto symbols to trade (can be fetched dynamically)
+const CRYPTO_SYMBOLS = [
+  "BTC/USD",
+  "ETH/USD",
+  "SOL/USD",
+  "DOGE/USD",
+  "AVAX/USD",
+  "LINK/USD",
+  "UNI/USD",
+  "AAVE/USD",
+  "LTC/USD",
+  "BCH/USD",
+  "DOT/USD",
+  "MATIC/USD",
+  "ATOM/USD",
+  "XLM/USD",
+  "ALGO/USD",
+];
+
+// Default stock symbols
+const STOCK_SYMBOLS = ["SPY", "QQQ", "IWM"];
 
 // Helper functions for strategy execution
 function SMA(arr: number[], period: number): number[] {
@@ -96,12 +123,15 @@ function executeStrategy(
   }
 }
 
-// Main agent loop
-async function runAgentCycle(): Promise<void> {
+// =====================
+// STOCK TRADING CYCLE
+// =====================
+async function runStockCycle(): Promise<void> {
   const cycleStart = Date.now();
+  const assetClass: AssetClass = "stock";
   
   try {
-    await log("info", "cycle_started", { timestamp: new Date().toISOString() });
+    await log("info", "stock_cycle_started", { timestamp: new Date().toISOString() });
     
     // Check if agent is enabled
     if (process.env.AGENT_ENABLED !== "true") {
@@ -109,54 +139,134 @@ async function runAgentCycle(): Promise<void> {
       return;
     }
     
-    // Check market status
+    // Check market status - stocks only trade during market hours
     const marketOpen = await isMarketOpen();
     if (!marketOpen) {
-      await log("info", "market_closed", {});
+      await log("info", "market_closed", { asset_class: assetClass });
       
       // If market just closed, run end-of-day analysis
       const now = new Date();
       if (now.getHours() === 16 && now.getMinutes() < 30) {
-        await runEndOfDayAnalysis();
+        await runEndOfDayAnalysis(assetClass);
       }
       return;
     }
     
-    // Get account status
+    // Check daily loss guardrail
     const account = await getAccount();
     const dailyPnl = account.equity - account.last_equity;
     const dailyPnlPercent = (dailyPnl / account.last_equity) * 100;
-    
-    // Check daily loss guardrail
     const maxDailyLoss = parseFloat(process.env.AGENT_MAX_DAILY_LOSS_PERCENT || "5");
+    
     if (dailyPnlPercent < -maxDailyLoss) {
-      await log("warning", "daily_loss_limit_hit", { dailyPnlPercent, maxDailyLoss });
+      await log("warning", "daily_loss_limit_hit", { dailyPnlPercent, maxDailyLoss, asset_class: assetClass });
       return;
     }
     
     // Get current positions
     const positions = await getPositions();
-    await log("info", "positions_checked", { count: positions.length, positions: positions.map(p => p.symbol) });
+    const stockPositions = positions.filter(p => !p.symbol.includes("/"));
+    await log("info", "stock_positions_checked", { count: stockPositions.length, positions: stockPositions.map(p => p.symbol) });
     
-    // Get active strategies
-    const strategies = await getActiveStrategies();
+    // Get active stock strategies
+    const strategies = await getActiveStrategies(assetClass);
     
     if (strategies.length === 0) {
-      // No active strategies - generate new ones
-      await log("info", "no_strategies", { action: "generating_new" });
-      await generateNewStrategy();
+      await log("info", "no_stock_strategies", { action: "generating_new" });
+      await generateNewStrategy(assetClass, STOCK_SYMBOLS);
       return;
     }
     
     // Execute each active strategy
-    for (const strategy of strategies) {
-      try {
-        // Get market data for the strategy's symbol (default to SPY)
-        const symbol = "SPY"; // TODO: Extract from strategy
-        const data = await getBars(symbol, "1Day", 60);
+    await executeStrategies(strategies, positions, assetClass);
+    
+    const cycleDuration = Date.now() - cycleStart;
+    await log("info", "stock_cycle_completed", { duration_ms: cycleDuration });
+    
+  } catch (error) {
+    await log("error", "stock_cycle_failed", { error: String(error) });
+  }
+}
+
+// =====================
+// CRYPTO TRADING CYCLE
+// =====================
+async function runCryptoCycle(): Promise<void> {
+  const cycleStart = Date.now();
+  const assetClass: AssetClass = "crypto";
+  
+  try {
+    await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString() });
+    
+    // Check if agent is enabled
+    if (process.env.AGENT_ENABLED !== "true") {
+      await log("info", "agent_disabled", {});
+      return;
+    }
+    
+    // No market hours check for crypto - trades 24/7!
+    
+    // Check daily loss guardrail
+    const account = await getAccount();
+    const dailyPnl = account.equity - account.last_equity;
+    const dailyPnlPercent = (dailyPnl / account.last_equity) * 100;
+    const maxDailyLoss = parseFloat(process.env.AGENT_MAX_DAILY_LOSS_PERCENT || "5");
+    
+    if (dailyPnlPercent < -maxDailyLoss) {
+      await log("warning", "daily_loss_limit_hit", { dailyPnlPercent, maxDailyLoss, asset_class: assetClass });
+      return;
+    }
+    
+    // Get current positions
+    const positions = await getPositions();
+    const cryptoPositions = positions.filter(p => p.symbol.includes("/") || CRYPTO_SYMBOLS.some(cs => cs.replace("/", "") === p.symbol));
+    await log("info", "crypto_positions_checked", { count: cryptoPositions.length, positions: cryptoPositions.map(p => p.symbol) });
+    
+    // Get active crypto strategies
+    const strategies = await getActiveStrategies(assetClass);
+    
+    if (strategies.length === 0) {
+      await log("info", "no_crypto_strategies", { action: "generating_new" });
+      await generateNewStrategy(assetClass, CRYPTO_SYMBOLS.slice(0, 5)); // Start with top 5
+      return;
+    }
+    
+    // Execute each active strategy
+    await executeStrategies(strategies, positions, assetClass);
+    
+    const cycleDuration = Date.now() - cycleStart;
+    await log("info", "crypto_cycle_completed", { duration_ms: cycleDuration });
+    
+  } catch (error) {
+    await log("error", "crypto_cycle_failed", { error: String(error) });
+  }
+}
+
+// =====================
+// SHARED STRATEGY EXECUTION
+// =====================
+async function executeStrategies(
+  strategies: Awaited<ReturnType<typeof getActiveStrategies>>,
+  positions: any[],
+  assetClass: AssetClass
+): Promise<void> {
+  for (const strategy of strategies) {
+    try {
+      // Get symbols for this strategy (default based on asset class)
+      const symbols = strategy.symbols || (assetClass === "crypto" ? ["BTC/USD"] : ["SPY"]);
+      
+      for (const symbol of symbols) {
+        // Get market data
+        const data = await getAssetBars(symbol, "1Day", 60);
         
-        // Check if we have a position
-        const position = positions.find(p => p.symbol === symbol);
+        if (data.close.length === 0) {
+          await log("warning", "no_data", { symbol, strategy_id: strategy.id });
+          continue;
+        }
+        
+        // Check if we have a position (handle crypto symbol format)
+        const positionSymbol = isCryptoSymbol(symbol) ? symbol.replace("/", "") : symbol;
+        const position = positions.find(p => p.symbol === positionSymbol);
         const positionInfo = position
           ? {
               qty: parseFloat(position.qty),
@@ -172,14 +282,12 @@ async function runAgentCycle(): Promise<void> {
           strategy_id: strategy.id,
           strategy_name: strategy.name,
           symbol,
+          asset_class: assetClass,
           signal,
         });
         
         // Act on signal
         if (signal.type !== "hold" && signal.confidence >= 0.7) {
-          const minSharpe = parseFloat(process.env.AGENT_MIN_SHARPE || "1.0");
-          
-          // Check if we should trade
           if (signal.type === "buy" && !positionInfo) {
             const qty = await calculatePositionSize(symbol, 10);
             if (qty > 0) {
@@ -201,46 +309,57 @@ async function runAgentCycle(): Promise<void> {
             });
           }
         }
-      } catch (error) {
-        await log("error", "strategy_execution_failed", {
-          strategy_id: strategy.id,
-          error: String(error),
-        });
       }
+    } catch (error) {
+      await log("error", "strategy_execution_failed", {
+        strategy_id: strategy.id,
+        asset_class: assetClass,
+        error: String(error),
+      });
     }
-    
-    const cycleDuration = Date.now() - cycleStart;
-    await log("info", "cycle_completed", { duration_ms: cycleDuration });
-    
-  } catch (error) {
-    await log("error", "cycle_failed", { error: String(error) });
   }
 }
 
 // Generate a new strategy via model debate
-async function generateNewStrategy(): Promise<void> {
+async function generateNewStrategy(
+  assetClass: AssetClass = "stock",
+  symbols: string[] = ["SPY"]
+): Promise<void> {
   try {
-    await log("info", "strategy_generation_started", {});
+    await log("info", "strategy_generation_started", { asset_class: assetClass, symbols });
     
-    // Get market context
-    const spyData = await getBars("SPY", "1Day", 30);
-    const lastPrice = spyData.close[spyData.close.length - 1];
-    const priceChange = ((lastPrice - spyData.close[0]) / spyData.close[0]) * 100;
+    // Get market context for the first symbol
+    const primarySymbol = symbols[0];
+    const data = await getAssetBars(primarySymbol, "1Day", 30);
     
+    if (data.close.length === 0) {
+      await log("warning", "no_market_data", { symbol: primarySymbol });
+      return;
+    }
+    
+    const lastPrice = data.close[data.close.length - 1];
+    const priceChange = ((lastPrice - data.close[0]) / data.close[0]) * 100;
+    const volatility = calculateVolatility(data.close);
+    
+    const assetLabel = assetClass === "crypto" ? "CRYPTO" : "STOCK";
     const marketContext = `
-SPY is ${priceChange > 0 ? "up" : "down"} ${Math.abs(priceChange).toFixed(2)}% over the last 30 days.
+${primarySymbol} is ${priceChange > 0 ? "up" : "down"} ${Math.abs(priceChange).toFixed(2)}% over the last 30 days.
 Current price: $${lastPrice.toFixed(2)}
-Recent volatility: ${calculateVolatility(spyData.close).toFixed(2)}%
+Recent volatility: ${volatility.toFixed(2)}%
+Asset class: ${assetClass.toUpperCase()}
+Target symbols: ${symbols.join(", ")}
 `;
     
-    // Run debate
-    const debate = await debateStrategy(
-      "Create a trading strategy for SPY ETF that can generate consistent returns with controlled risk. Focus on technical indicators and clear entry/exit rules.",
-      marketContext
-    );
+    // Create asset-specific requirements
+    const requirements = assetClass === "crypto"
+      ? `Create a CRYPTO trading strategy for ${symbols.join(", ")}. Consider 24/7 trading, higher volatility, and crypto-specific patterns. Focus on momentum, volume, and RSI. Use appropriate stop losses for crypto's volatility.`
+      : `Create a STOCK trading strategy for ${symbols.join(", ")}. Focus on technical indicators, market hours patterns, and clear entry/exit rules with controlled risk.`;
+    
+    // Run debate with asset class
+    const debate = await debateStrategy(requirements, marketContext, assetClass);
     
     if (!debate.finalStrategy) {
-      await log("warning", "strategy_generation_failed", { reason: "no_code_extracted" });
+      await log("warning", "strategy_generation_failed", { reason: "no_code_extracted", asset_class: assetClass });
       return;
     }
     
@@ -252,39 +371,48 @@ Recent volatility: ${calculateVolatility(spyData.close).toFixed(2)}%
       claude_score: validation.claudeScore,
       openai_score: validation.openaiScore,
       concerns: validation.concerns,
+      asset_class: assetClass,
     });
     
     if (!validation.approved) {
-      await log("warning", "strategy_rejected", { reason: "low_scores", validation });
+      await log("warning", "strategy_rejected", { reason: "low_scores", validation, asset_class: assetClass });
       return;
     }
     
-    // Save strategy
+    // Save strategy with asset class and symbols
     const strategyId = await saveStrategy(
-      `Auto-Strategy-${Date.now()}`,
+      `${assetClass.toUpperCase()}-Strategy-${Date.now()}`,
       `Generated via debate. Claude: ${validation.claudeScore}/10, OpenAI: ${validation.openaiScore}/10`,
       debate.finalStrategy,
-      "consensus"
+      "consensus",
+      assetClass,
+      symbols
     );
     
     // TODO: Run backtest before deploying
     // For now, mark as deployed
     await updateStrategyStatus(strategyId, "deployed");
     
-    await log("decision", "strategy_deployed", { strategy_id: strategyId });
+    await log("decision", "strategy_deployed", { strategy_id: strategyId, asset_class: assetClass, symbols });
     
   } catch (error) {
-    await log("error", "strategy_generation_error", { error: String(error) });
+    await log("error", "strategy_generation_error", { error: String(error), asset_class: assetClass });
   }
 }
 
-// End of day analysis
-async function runEndOfDayAnalysis(): Promise<void> {
+// End of day analysis (or periodic for crypto)
+async function runEndOfDayAnalysis(assetClass: AssetClass = "stock"): Promise<void> {
   try {
-    await log("info", "eod_analysis_started", {});
+    await log("info", "eod_analysis_started", { asset_class: assetClass });
     
     // Get today's trades
-    const trades = await getTodaysTrades();
+    const allTrades = await getTodaysTrades();
+    
+    // Filter by asset class
+    const trades = allTrades.filter(t => {
+      const isCrypto = t.symbol.includes("/") || t.asset_class === "crypto";
+      return assetClass === "crypto" ? isCrypto : !isCrypto;
+    });
     
     if (trades.length > 0) {
       // Analyze trades with both models
@@ -295,15 +423,15 @@ async function runEndOfDayAnalysis(): Promise<void> {
         reasoning: t.reasoning || "",
       }));
       
-      await analyzeAndLearn(tradeData);
+      await analyzeAndLearn(tradeData, assetClass);
     }
     
-    // Save daily snapshot
+    // Save daily snapshot (combined for now)
     const account = await getAccount();
     const dailyPnl = account.equity - account.last_equity;
     
     const strategies = await getActiveStrategies();
-    const winningTrades = trades.filter(t => (t.pnl || 0) > 0).length;
+    const winningTrades = allTrades.filter(t => (t.pnl || 0) > 0).length;
     
     await saveDailySnapshot({
       portfolio_value: account.portfolio_value,
@@ -312,17 +440,18 @@ async function runEndOfDayAnalysis(): Promise<void> {
       total_pnl: account.equity - 100000, // Assuming started with 100k
       total_pnl_percent: ((account.equity - 100000) / 100000) * 100,
       active_strategies: strategies.length,
-      trades_today: trades.length,
-      win_rate_today: trades.length > 0 ? winningTrades / trades.length : 0,
+      trades_today: allTrades.length,
+      win_rate_today: allTrades.length > 0 ? winningTrades / allTrades.length : 0,
     });
     
     await log("info", "eod_analysis_completed", {
       trades_analyzed: trades.length,
       daily_pnl: dailyPnl,
+      asset_class: assetClass,
     });
     
   } catch (error) {
-    await log("error", "eod_analysis_failed", { error: String(error) });
+    await log("error", "eod_analysis_failed", { error: String(error), asset_class: assetClass });
   }
 }
 
@@ -346,6 +475,7 @@ async function main(): Promise<void> {
   console.log("🤖 Quant Agent Starting...");
   console.log(`Mode: ${process.env.ALPACA_PAPER === "true" ? "PAPER TRADING" : "LIVE TRADING"}`);
   console.log(`Agent Enabled: ${process.env.AGENT_ENABLED}`);
+  console.log(`Trading: STOCKS + CRYPTO (24/7)`);
   
   // Validate environment
   const required = [
@@ -364,22 +494,54 @@ async function main(): Promise<void> {
   }
   
   console.log("✅ Environment validated");
+  console.log(`📈 Stock symbols: ${STOCK_SYMBOLS.join(", ")}`);
+  console.log(`🪙 Crypto symbols: ${CRYPTO_SYMBOLS.slice(0, 5).join(", ")}... (${CRYPTO_SYMBOLS.length} total)`);
   
-  // Run initial cycle
-  console.log("🚀 Running initial cycle...");
-  await runAgentCycle();
+  // Run initial cycles
+  console.log("\n🚀 Running initial stock cycle...");
+  await runStockCycle();
   
-  // Schedule cron job - every 15 minutes during market hours
-  // Market hours: 9:30 AM - 4:00 PM ET, Monday-Friday
+  console.log("\n🚀 Running initial crypto cycle...");
+  await runCryptoCycle();
+  
+  // =====================
+  // SCHEDULE CRON JOBS
+  // =====================
+  
+  // STOCKS: Every 15 minutes during market hours (9AM-4PM ET, Mon-Fri)
   cron.schedule("*/15 9-16 * * 1-5", async () => {
-    console.log(`\n⏰ Scheduled cycle at ${new Date().toISOString()}`);
-    await runAgentCycle();
+    console.log(`\n📈 [STOCKS] Scheduled cycle at ${new Date().toISOString()}`);
+    await runStockCycle();
   }, {
     timezone: "America/New_York",
   });
   
-  console.log("📅 Cron scheduled: Every 15 min, 9AM-4PM ET, Mon-Fri");
-  console.log("🤖 Agent is running. Press Ctrl+C to stop.");
+  // CRYPTO: Every 15 minutes, 24/7 (crypto never sleeps!)
+  cron.schedule("*/15 * * * *", async () => {
+    console.log(`\n🪙 [CRYPTO] Scheduled cycle at ${new Date().toISOString()}`);
+    await runCryptoCycle();
+  });
+  
+  // End-of-day analysis for stocks at 4:30 PM ET on weekdays
+  cron.schedule("30 16 * * 1-5", async () => {
+    console.log(`\n📊 [STOCKS] End-of-day analysis at ${new Date().toISOString()}`);
+    await runEndOfDayAnalysis("stock");
+  }, {
+    timezone: "America/New_York",
+  });
+  
+  // Daily analysis for crypto at midnight UTC
+  cron.schedule("0 0 * * *", async () => {
+    console.log(`\n📊 [CRYPTO] Daily analysis at ${new Date().toISOString()}`);
+    await runEndOfDayAnalysis("crypto");
+  });
+  
+  console.log("\n📅 Cron schedules configured:");
+  console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
+  console.log("   🪙 CRYPTO: Every 15 min, 24/7");
+  console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
+  console.log("   📊 Crypto Daily: Midnight UTC");
+  console.log("\n🤖 Agent is running. Press Ctrl+C to stop.");
 }
 
 main().catch(console.error);

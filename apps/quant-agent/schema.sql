@@ -124,3 +124,21 @@ CREATE POLICY "Allow all for model_debates" ON model_debates FOR ALL USING (true
 CREATE POLICY "Allow all for child_learnings" ON child_learnings FOR ALL USING (true);
 CREATE POLICY "Allow all for agent_logs" ON agent_logs FOR ALL USING (true);
 CREATE POLICY "Allow all for daily_snapshots" ON daily_snapshots FOR ALL USING (true);
+
+-- =====================
+-- CRYPTO SUPPORT (v1.1)
+-- =====================
+-- Add asset class and symbols to strategies
+ALTER TABLE strategies ADD COLUMN IF NOT EXISTS asset_class TEXT DEFAULT 'stock';
+ALTER TABLE strategies ADD COLUMN IF NOT EXISTS symbols TEXT[] DEFAULT ARRAY['SPY'];
+
+-- Add asset class to trades for filtering
+ALTER TABLE agent_trades ADD COLUMN IF NOT EXISTS asset_class TEXT DEFAULT 'stock';
+
+-- Add asset class to child learnings
+ALTER TABLE child_learnings ADD COLUMN IF NOT EXISTS asset_class TEXT DEFAULT 'stock';
+
+-- Index for filtering by asset class
+CREATE INDEX IF NOT EXISTS idx_strategies_asset_class ON strategies(asset_class);
+CREATE INDEX IF NOT EXISTS idx_trades_asset_class ON agent_trades(asset_class);
+CREATE INDEX IF NOT EXISTS idx_learnings_asset_class ON child_learnings(asset_class);
