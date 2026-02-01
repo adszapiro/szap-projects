@@ -17,6 +17,36 @@ export interface Project {
 
 export const projects: Project[] = [
   {
+    title: "szap-cli",
+    description: "CLI tool for scaffolding projects. Create Next.js apps, APIs, and libraries with best practices in seconds.",
+    tech: "Node.js, TypeScript, Commander, Inquirer, Chalk",
+    link: "https://github.com/adszapiro/szap-projects/tree/main/packages/szap-cli",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "⚡"
+  },
+  {
+    title: "SnippetVault",
+    description: "Code snippet manager with beautiful syntax highlighting. Save, organize, search, and share code snippets.",
+    tech: "Next.js, TypeScript, Prism, localStorage",
+    link: "https://snippet-vault-lime.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "💾"
+  },
+  {
+    title: "DevPulse",
+    description: "GitHub activity dashboard. Visualize contributions, streaks, top languages, and recent repos for any GitHub profile.",
+    tech: "Next.js, TypeScript, GitHub API, Recharts",
+    link: "https://devpulse-ivory.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "📊"
+  },
+  {
     title: "ResumeAI",
     description: "AI-powered resume tailoring SaaS. Paste your resume + job description, get specific suggestions to improve your match score.",
     tech: "Next.js, TypeScript, OpenAI GPT-4, Tailwind CSS",
