@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Play, Save, FileCode, ChevronDown, Loader2 } from "lucide-react";
+import { Play, PlayCircle, FileCode, ChevronDown, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 // Dynamically import Monaco to avoid SSR issues
@@ -11,9 +11,12 @@ interface StrategyEditorProps {
   code: string;
   onChange: (code: string) => void;
   onRun: () => void;
+  onRunAll?: () => void;
   loading: boolean;
+  runningAll?: boolean;
   selectedTemplate: string;
   onTemplateChange: (template: string) => void;
+  watchlistCount?: number;
 }
 
 const templates: Record<string, { name: string; code: string }> = {
@@ -152,9 +155,12 @@ export default function StrategyEditor({
   code,
   onChange,
   onRun,
+  onRunAll,
   loading,
+  runningAll = false,
   selectedTemplate,
   onTemplateChange,
+  watchlistCount = 0,
 }: StrategyEditorProps) {
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -211,13 +217,29 @@ export default function StrategyEditor({
             disabled={loading}
             className="btn btn-success text-xs"
           >
-            {loading ? (
+            {loading && !runningAll ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Play className="w-4 h-4" />
             )}
-            {loading ? "Running..." : "Run Backtest"}
+            Run
           </button>
+
+          {/* Run All Button */}
+          {onRunAll && watchlistCount > 1 && (
+            <button
+              onClick={onRunAll}
+              disabled={loading}
+              className="btn btn-primary text-xs"
+            >
+              {runningAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <PlayCircle className="w-4 h-4" />
+              )}
+              Run All ({watchlistCount})
+            </button>
+          )}
         </div>
       </div>
 

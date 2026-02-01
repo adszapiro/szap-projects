@@ -1,15 +1,17 @@
 "use client";
 
 import { BacktestResult } from "@/lib/types";
-import { TrendingUp, TrendingDown, Target, BarChart3, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, BarChart3, Clock, AlertCircle, Loader2, GitCompare } from "lucide-react";
 
 interface ResultsPanelProps {
   result: BacktestResult | null;
   error: string | null;
   loading: boolean;
+  showCompareButton?: boolean;
+  onCompare?: () => void;
 }
 
-export default function ResultsPanel({ result, error, loading }: ResultsPanelProps) {
+export default function ResultsPanel({ result, error, loading, showCompareButton, onCompare }: ResultsPanelProps) {
   if (loading) {
     return (
       <div className="panel h-full flex items-center justify-center">
@@ -50,13 +52,22 @@ export default function ResultsPanel({ result, error, loading }: ResultsPanelPro
   return (
     <div className="panel h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-[var(--border-color)]">
+      <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-[var(--text-muted)]" />
           <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
             Results
           </span>
         </div>
+        {showCompareButton && onCompare && (
+          <button
+            onClick={onCompare}
+            className="btn btn-secondary text-xs py-1 px-2"
+          >
+            <GitCompare className="w-3 h-3" />
+            Compare
+          </button>
+        )}
       </div>
 
       {/* Metrics Grid */}

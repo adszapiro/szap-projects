@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OHLCV } from '@/lib/types';
+import { getCachedData, cacheData, CachedPriceData } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbol = searchParams.get('symbol');
-  const type = searchParams.get('type');
+  const type = searchParams.get('type') as 'stock' | 'crypto';
   const startDate = searchParams.get('start');
   const endDate = searchParams.get('end');
 
@@ -16,6 +17,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Try to get cached data first
+    const cachedData = await getCachedData(symbol, type, startDate, endDate);
+    
+    if (cachedData && cachedData.length > 0) {
+      // Convert cached data to OHLCV format
+      const data: OHLCV[] = cachedData.map(d => ({
+        date: d.date,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+        volume: d.volume,
+      }));
+      
+      return NextResponse.json(data, {
+        headers: { 'X-Data-Source': 'cache' }
+      });
+    }
+
+    // Fetch fresh data
     let data: OHLCV[];
 
     if (type === 'stock') {
@@ -29,7 +50,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data);
+    // Cache the data in background (don't await)
+    const cacheDataFormatted: CachedPriceData[] = data.map(d => ({
+      symbol,
+      asset_type: type,
+      date: d.date,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume,
+    }));
+    
+    cacheData(symbol, type, cacheDataFormatted).catch(() => {
+      // Silently ignore cache errors
+    });
+
+    return NextResponse.json(data, {
+      headers: { 'X-Data-Source': 'api' }
+    });
   } catch (error) {
     console.error('Data fetch error:', error);
     return NextResponse.json(

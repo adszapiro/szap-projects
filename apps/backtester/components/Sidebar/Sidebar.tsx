@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, X, TrendingUp, Bitcoin } from "lucide-react";
-import { Asset } from "@/app/page";
+import { Search, Plus, X, TrendingUp, Bitcoin, TrendingDown } from "lucide-react";
+import { Asset, AssetResult } from "@/app/page";
 import { popularStocks, popularCrypto } from "@/lib/data";
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ interface SidebarProps {
   onSelectAsset: (asset: Asset) => void;
   onAddAsset: (asset: Asset) => void;
   onRemoveAsset: (symbol: string) => void;
+  multiResults?: AssetResult[];
 }
 
 export default function Sidebar({
@@ -19,7 +20,12 @@ export default function Sidebar({
   onSelectAsset,
   onAddAsset,
   onRemoveAsset,
+  multiResults = [],
 }: SidebarProps) {
+  // Helper to get result for an asset
+  const getAssetResult = (symbol: string) => {
+    return multiResults.find(r => r.asset.symbol === symbol);
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
@@ -98,40 +104,58 @@ export default function Sidebar({
 
       {/* Watchlist */}
       <div className="flex-1 overflow-y-auto py-2">
-        {watchlist.map((asset) => (
-          <div
-            key={asset.symbol}
-            className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
-              selectedAsset.symbol === asset.symbol
-                ? "bg-[var(--bg-tertiary)] border-l-2 border-blue-500"
-                : "hover:bg-[var(--bg-hover)] border-l-2 border-transparent"
-            }`}
-            onClick={() => onSelectAsset(asset)}
-          >
-            <div className="w-7 h-7 rounded bg-[var(--bg-primary)] flex items-center justify-center">
-              {asset.type === "crypto" ? (
-                <Bitcoin className="w-4 h-4 text-yellow-500" />
-              ) : (
-                <TrendingUp className="w-4 h-4 text-blue-500" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">
-                {asset.symbol.toUpperCase()}
-              </div>
-              <div className="text-[10px] text-[var(--text-muted)] truncate">{asset.name}</div>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemoveAsset(asset.symbol);
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-primary)] rounded transition-all"
+        {watchlist.map((asset) => {
+          const assetResult = getAssetResult(asset.symbol);
+          const returnPercent = assetResult?.result.metrics.totalReturnPercent;
+          
+          return (
+            <div
+              key={asset.symbol}
+              className={`group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors ${
+                selectedAsset.symbol === asset.symbol
+                  ? "bg-[var(--bg-tertiary)] border-l-2 border-blue-500"
+                  : "hover:bg-[var(--bg-hover)] border-l-2 border-transparent"
+              }`}
+              onClick={() => onSelectAsset(asset)}
             >
-              <X className="w-3 h-3 text-[var(--text-muted)]" />
-            </button>
-          </div>
-        ))}
+              <div className="w-7 h-7 rounded bg-[var(--bg-primary)] flex items-center justify-center">
+                {asset.type === "crypto" ? (
+                  <Bitcoin className="w-4 h-4 text-yellow-500" />
+                ) : (
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">
+                  {asset.symbol.toUpperCase()}
+                </div>
+                <div className="text-[10px] text-[var(--text-muted)] truncate">{asset.name}</div>
+              </div>
+              {/* Show return if we have results */}
+              {returnPercent !== undefined && (
+                <div className={`flex items-center gap-0.5 text-xs font-medium ${
+                  returnPercent >= 0 ? "text-green-500" : "text-red-500"
+                }`}>
+                  {returnPercent >= 0 ? (
+                    <TrendingUp className="w-3 h-3" />
+                  ) : (
+                    <TrendingDown className="w-3 h-3" />
+                  )}
+                  {returnPercent >= 0 ? "+" : ""}{returnPercent.toFixed(1)}%
+                </div>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveAsset(asset.symbol);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-primary)] rounded transition-all"
+              >
+                <X className="w-3 h-3 text-[var(--text-muted)]" />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Quick Add Buttons */}

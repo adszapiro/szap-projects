@@ -9,11 +9,17 @@ import Sidebar from "@/components/Sidebar/Sidebar";
 import ChartPanel from "@/components/Chart/ChartPanel";
 import StrategyEditor from "@/components/Editor/StrategyEditor";
 import ResultsPanel from "@/components/Results/ResultsPanel";
+import ComparisonPanel from "@/components/Results/ComparisonPanel";
 
 export interface Asset {
   symbol: string;
   name: string;
   type: "stock" | "crypto";
+}
+
+export interface AssetResult {
+  asset: Asset;
+  result: BacktestResult;
 }
 
 export default function BacktesterPage() {
@@ -69,7 +75,10 @@ function strategy(data, indicators, context) {
   
   // Results state
   const [result, setResult] = useState<BacktestResult | null>(null);
+  const [multiResults, setMultiResults] = useState<AssetResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [runningAll, setRunningAll] = useState(false);
 
   // Fetch data when asset changes
   const loadData = useCallback(async () => {
@@ -94,7 +103,7 @@ function strategy(data, indicators, context) {
     loadData();
   }, [loadData]);
 
-  // Run backtest
+  // Run backtest on single asset
   const handleRunBacktest = async () => {
     if (priceData.length === 0) {
       setError("No price data loaded");
@@ -105,11 +114,15 @@ function strategy(data, indicators, context) {
     setError(null);
 
     try {
-      // Execute the custom strategy code
       const executionResult = executeStrategy(strategyCode, priceData, initialCapital);
 
       if (executionResult.success && executionResult.result) {
         setResult(executionResult.result);
+        // Update multi-results with this single result
+        setMultiResults(prev => {
+          const filtered = prev.filter(r => r.asset.symbol !== selectedAsset.symbol);
+          return [...filtered, { asset: selectedAsset, result: executionResult.result! }];
+        });
       } else {
         setError(executionResult.error || "Strategy execution failed");
       }
@@ -117,6 +130,67 @@ function strategy(data, indicators, context) {
       setError(err instanceof Error ? err.message : "Backtest failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Run backtest on ALL watchlist assets
+  const handleRunAll = async () => {
+    if (watchlist.length === 0) return;
+
+    setRunningAll(true);
+    setLoading(true);
+    setError(null);
+    setMultiResults([]);
+
+    const results: AssetResult[] = [];
+
+    for (const asset of watchlist) {
+      try {
+        // Fetch data for this asset
+        const data = await fetchMarketData(
+          asset.symbol,
+          asset.type,
+          startDate,
+          endDate
+        );
+
+        // Run strategy
+        const executionResult = executeStrategy(strategyCode, data, initialCapital);
+
+        if (executionResult.success && executionResult.result) {
+          results.push({ asset, result: executionResult.result });
+        }
+      } catch (err) {
+        console.error(`Failed for ${asset.symbol}:`, err);
+      }
+    }
+
+    setMultiResults(results);
+    
+    // Set the first result as the current result
+    if (results.length > 0) {
+      const selectedResult = results.find(r => r.asset.symbol === selectedAsset.symbol);
+      if (selectedResult) {
+        setResult(selectedResult.result);
+        setPriceData(selectedResult.result.priceData);
+      } else {
+        setResult(results[0].result);
+        setSelectedAsset(results[0].asset);
+        setPriceData(results[0].result.priceData);
+      }
+    }
+
+    setShowComparison(true);
+    setLoading(false);
+    setRunningAll(false);
+  };
+
+  // When selecting an asset, also show its result if available
+  const handleSelectAsset = (asset: Asset) => {
+    setSelectedAsset(asset);
+    const assetResult = multiResults.find(r => r.asset.symbol === asset.symbol);
+    if (assetResult) {
+      setResult(assetResult.result);
     }
   };
 
@@ -130,6 +204,7 @@ function strategy(data, indicators, context) {
   // Remove asset from watchlist
   const handleRemoveAsset = (symbol: string) => {
     setWatchlist(watchlist.filter(a => a.symbol !== symbol));
+    setMultiResults(prev => prev.filter(r => r.asset.symbol !== symbol));
     if (selectedAsset.symbol === symbol && watchlist.length > 1) {
       setSelectedAsset(watchlist[0]);
     }
@@ -153,21 +228,30 @@ function strategy(data, indicators, context) {
         <Sidebar
           watchlist={watchlist}
           selectedAsset={selectedAsset}
-          onSelectAsset={setSelectedAsset}
+          onSelectAsset={handleSelectAsset}
           onAddAsset={handleAddAsset}
           onRemoveAsset={handleRemoveAsset}
+          multiResults={multiResults}
         />
 
         {/* Main Area */}
         <div className="flex-1 flex flex-col p-3 gap-3 overflow-hidden">
-          {/* Chart */}
+          {/* Chart or Comparison View */}
           <div className="flex-1 min-h-0">
-            <ChartPanel
-              data={priceData}
-              trades={result?.trades || []}
-              loading={dataLoading}
-              symbol={selectedAsset.symbol}
-            />
+            {showComparison && multiResults.length > 1 ? (
+              <ComparisonPanel
+                results={multiResults}
+                onClose={() => setShowComparison(false)}
+                onSelectAsset={handleSelectAsset}
+              />
+            ) : (
+              <ChartPanel
+                data={priceData}
+                trades={result?.trades || []}
+                loading={dataLoading}
+                symbol={selectedAsset.symbol}
+              />
+            )}
           </div>
 
           {/* Bottom Panels */}
@@ -178,9 +262,12 @@ function strategy(data, indicators, context) {
                 code={strategyCode}
                 onChange={setStrategyCode}
                 onRun={handleRunBacktest}
+                onRunAll={handleRunAll}
                 loading={loading}
+                runningAll={runningAll}
                 selectedTemplate={selectedTemplate}
                 onTemplateChange={setSelectedTemplate}
+                watchlistCount={watchlist.length}
               />
             </div>
 
@@ -190,6 +277,8 @@ function strategy(data, indicators, context) {
                 result={result}
                 error={error}
                 loading={loading}
+                showCompareButton={multiResults.length > 1}
+                onCompare={() => setShowComparison(true)}
               />
             </div>
           </div>
