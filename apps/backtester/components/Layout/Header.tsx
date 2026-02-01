@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, Settings, Calendar, DollarSign, Search, BarChart3, LayoutGrid, Shield, Zap } from "lucide-react";
+import { TrendingUp, Settings, Calendar, DollarSign, Search, BarChart3, LayoutGrid, Shield, Zap, PieChart } from "lucide-react";
 import Link from "next/link";
 
 interface HeaderProps {
@@ -70,6 +70,13 @@ export default function Header({
           >
             <Zap className="w-3.5 h-3.5" />
             Scenarios
+          </Link>
+          <Link
+            href="/optimizer"
+            className="px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] rounded transition-colors flex items-center gap-1.5"
+          >
+            <PieChart className="w-3.5 h-3.5" />
+            Optimizer
           </Link>
         </nav>
       </div>
