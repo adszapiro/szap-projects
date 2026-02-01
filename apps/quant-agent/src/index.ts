@@ -24,6 +24,7 @@ import {
   getCryptoBars,
   getAssetBars,
   isCryptoSymbol,
+  isCryptoTradingAvailable,
 } from "./executor.js";
 
 // Default crypto symbols to trade (can be fetched dynamically)
@@ -196,7 +197,8 @@ async function runCryptoCycle(): Promise<void> {
   const assetClass: AssetClass = "crypto";
   
   try {
-    await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString() });
+    const tradingMode = isCryptoTradingAvailable() ? "TRADING" : "LEARNING_ONLY";
+    await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString(), mode: tradingMode });
     
     // Check if agent is enabled
     if (process.env.AGENT_ENABLED !== "true") {
@@ -206,21 +208,26 @@ async function runCryptoCycle(): Promise<void> {
     
     // No market hours check for crypto - trades 24/7!
     
-    // Check daily loss guardrail
-    const account = await getAccount();
-    const dailyPnl = account.equity - account.last_equity;
-    const dailyPnlPercent = (dailyPnl / account.last_equity) * 100;
-    const maxDailyLoss = parseFloat(process.env.AGENT_MAX_DAILY_LOSS_PERCENT || "5");
-    
-    if (dailyPnlPercent < -maxDailyLoss) {
-      await log("warning", "daily_loss_limit_hit", { dailyPnlPercent, maxDailyLoss, asset_class: assetClass });
-      return;
+    // Check daily loss guardrail (only if trading is available)
+    if (isCryptoTradingAvailable()) {
+      const account = await getAccount();
+      const dailyPnl = account.equity - account.last_equity;
+      const dailyPnlPercent = (dailyPnl / account.last_equity) * 100;
+      const maxDailyLoss = parseFloat(process.env.AGENT_MAX_DAILY_LOSS_PERCENT || "5");
+      
+      if (dailyPnlPercent < -maxDailyLoss) {
+        await log("warning", "daily_loss_limit_hit", { dailyPnlPercent, maxDailyLoss, asset_class: assetClass });
+        return;
+      }
     }
     
-    // Get current positions
-    const positions = await getPositions();
-    const cryptoPositions = positions.filter(p => p.symbol.includes("/") || CRYPTO_SYMBOLS.some(cs => cs.replace("/", "") === p.symbol));
-    await log("info", "crypto_positions_checked", { count: cryptoPositions.length, positions: cryptoPositions.map(p => p.symbol) });
+    // Get current positions (only if trading is available)
+    let positions: any[] = [];
+    if (isCryptoTradingAvailable()) {
+      positions = await getPositions();
+      const cryptoPositions = positions.filter(p => p.symbol.includes("/") || CRYPTO_SYMBOLS.some(cs => cs.replace("/", "") === p.symbol));
+      await log("info", "crypto_positions_checked", { count: cryptoPositions.length, positions: cryptoPositions.map(p => p.symbol) });
+    }
     
     // Get active crypto strategies
     const strategies = await getActiveStrategies(assetClass);
@@ -231,11 +238,11 @@ async function runCryptoCycle(): Promise<void> {
       return;
     }
     
-    // Execute each active strategy
+    // Execute each active strategy (will skip trades if not available)
     await executeStrategies(strategies, positions, assetClass);
     
     const cycleDuration = Date.now() - cycleStart;
-    await log("info", "crypto_cycle_completed", { duration_ms: cycleDuration });
+    await log("info", "crypto_cycle_completed", { duration_ms: cycleDuration, mode: tradingMode });
     
   } catch (error) {
     await log("error", "crypto_cycle_failed", { error: String(error) });
@@ -288,6 +295,18 @@ async function executeStrategies(
         
         // Act on signal
         if (signal.type !== "hold" && signal.confidence >= 0.7) {
+          // Check if we can actually trade this asset
+          const canTrade = assetClass === "stock" || isCryptoTradingAvailable();
+          
+          if (!canTrade) {
+            await log("info", "crypto_trade_skipped", {
+              symbol,
+              signal,
+              reason: "Alpaca crypto trading not available in your region. Strategy saved for learning.",
+            });
+            continue;
+          }
+          
           if (signal.type === "buy" && !positionInfo) {
             const qty = await calculatePositionSize(symbol, 10);
             if (qty > 0) {

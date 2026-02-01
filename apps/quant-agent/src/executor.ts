@@ -6,6 +6,29 @@ const ALPACA_BASE_URL = process.env.ALPACA_PAPER === "true"
 
 const ALPACA_DATA_URL = "https://data.alpaca.markets";
 const ALPACA_CRYPTO_DATA_URL = "https://data.alpaca.markets/v1beta3/crypto/us";
+const COINGECKO_API_URL = "https://api.coingecko.com/api/v3";
+
+// Map crypto symbols to CoinGecko IDs
+const CRYPTO_ID_MAP: Record<string, string> = {
+  "BTC/USD": "bitcoin",
+  "ETH/USD": "ethereum",
+  "SOL/USD": "solana",
+  "DOGE/USD": "dogecoin",
+  "AVAX/USD": "avalanche-2",
+  "LINK/USD": "chainlink",
+  "UNI/USD": "uniswap",
+  "AAVE/USD": "aave",
+  "LTC/USD": "litecoin",
+  "BCH/USD": "bitcoin-cash",
+  "DOT/USD": "polkadot",
+  "MATIC/USD": "matic-network",
+  "ATOM/USD": "cosmos",
+  "XLM/USD": "stellar",
+  "ALGO/USD": "algorand",
+};
+
+// Flag to track if Alpaca crypto is available
+let alpacaCryptoAvailable: boolean | null = null;
 
 // Check if symbol is crypto (contains /)
 export function isCryptoSymbol(symbol: string): boolean {
@@ -231,64 +254,130 @@ export async function getCryptoAssets(): Promise<string[]> {
   return assets.map((a: any) => a.symbol);
 }
 
-// Get crypto OHLCV bars
+// Get crypto OHLCV bars (tries Alpaca first, falls back to CoinGecko)
 export async function getCryptoBars(
   symbol: string,
   timeframe: string = "1Day",
   limit: number = 100
 ): Promise<{ close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }> {
-  const formattedSymbol = formatCryptoSymbol(symbol);
-  const { apiKey, secretKey } = getCredentials();
-  
-  const response = await fetch(
-    `${ALPACA_CRYPTO_DATA_URL}/bars?symbols=${formattedSymbol}&timeframe=${timeframe}&limit=${limit}`,
-    {
-      headers: {
-        "APCA-API-KEY-ID": apiKey,
-        "APCA-API-SECRET-KEY": secretKey,
-      },
-    }
-  );
+  // Try Alpaca first if we haven't determined it's unavailable
+  if (alpacaCryptoAvailable !== false) {
+    try {
+      const formattedSymbol = formatCryptoSymbol(symbol);
+      const { apiKey, secretKey } = getCredentials();
+      
+      const response = await fetch(
+        `${ALPACA_CRYPTO_DATA_URL}/bars?symbols=${formattedSymbol}&timeframe=${timeframe}&limit=${limit}`,
+        {
+          headers: {
+            "APCA-API-KEY-ID": apiKey,
+            "APCA-API-SECRET-KEY": secretKey,
+          },
+        }
+      );
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Crypto API error: ${response.status} - ${error}`);
+      if (response.ok) {
+        alpacaCryptoAvailable = true;
+        const data = await response.json();
+        const bars = data.bars?.[formattedSymbol] || [];
+        
+        return {
+          close: bars.map((b: any) => b.c),
+          high: bars.map((b: any) => b.h),
+          low: bars.map((b: any) => b.l),
+          open: bars.map((b: any) => b.o),
+          volume: bars.map((b: any) => b.v),
+        };
+      } else if (response.status === 401 || response.status === 403) {
+        console.log("⚠️ Alpaca crypto not available, falling back to CoinGecko");
+        alpacaCryptoAvailable = false;
+      }
+    } catch (error) {
+      console.log("⚠️ Alpaca crypto error, trying CoinGecko:", error);
+    }
   }
 
-  const data = await response.json();
-  const bars = data.bars?.[formattedSymbol] || [];
+  // Fall back to CoinGecko
+  return getCryptoBarsFromCoinGecko(symbol, limit);
+}
+
+// Get crypto data from CoinGecko (free, no auth)
+async function getCryptoBarsFromCoinGecko(
+  symbol: string,
+  days: number = 100
+): Promise<{ close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }> {
+  const coinId = CRYPTO_ID_MAP[symbol];
+  if (!coinId) {
+    console.log(`⚠️ Unknown crypto symbol: ${symbol}, using bitcoin as fallback`);
+  }
   
+  const id = coinId || "bitcoin";
+  const url = `${COINGECKO_API_URL}/coins/${id}/ohlc?vs_currency=usd&days=${Math.min(days, 365)}`;
+  
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`CoinGecko API error: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  
+  // CoinGecko OHLC format: [timestamp, open, high, low, close]
+  // Note: CoinGecko doesn't provide volume in OHLC endpoint
   return {
-    close: bars.map((b: any) => b.c),
-    high: bars.map((b: any) => b.h),
-    low: bars.map((b: any) => b.l),
-    open: bars.map((b: any) => b.o),
-    volume: bars.map((b: any) => b.v),
+    open: data.map((d: number[]) => d[1]),
+    high: data.map((d: number[]) => d[2]),
+    low: data.map((d: number[]) => d[3]),
+    close: data.map((d: number[]) => d[4]),
+    volume: data.map(() => 0), // Volume not available from CoinGecko OHLC
   };
 }
 
-// Get latest crypto price
+// Get latest crypto price (tries Alpaca first, falls back to CoinGecko)
 export async function getLatestCryptoPrice(symbol: string): Promise<number> {
-  const formattedSymbol = formatCryptoSymbol(symbol);
-  const { apiKey, secretKey } = getCredentials();
-  
-  const response = await fetch(
-    `${ALPACA_CRYPTO_DATA_URL}/latest/trades?symbols=${formattedSymbol}`,
-    {
-      headers: {
-        "APCA-API-KEY-ID": apiKey,
-        "APCA-API-SECRET-KEY": secretKey,
-      },
-    }
-  );
+  // Try Alpaca first if available
+  if (alpacaCryptoAvailable !== false) {
+    try {
+      const formattedSymbol = formatCryptoSymbol(symbol);
+      const { apiKey, secretKey } = getCredentials();
+      
+      const response = await fetch(
+        `${ALPACA_CRYPTO_DATA_URL}/latest/trades?symbols=${formattedSymbol}`,
+        {
+          headers: {
+            "APCA-API-KEY-ID": apiKey,
+            "APCA-API-SECRET-KEY": secretKey,
+          },
+        }
+      );
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Crypto API error: ${response.status} - ${error}`);
+      if (response.ok) {
+        const data = await response.json();
+        const price = data.trades?.[formattedSymbol]?.p;
+        if (price) return price;
+      }
+    } catch (error) {
+      // Fall through to CoinGecko
+    }
   }
 
+  // Fall back to CoinGecko
+  return getCryptoPriceFromCoinGecko(symbol);
+}
+
+// Get crypto price from CoinGecko
+async function getCryptoPriceFromCoinGecko(symbol: string): Promise<number> {
+  const coinId = CRYPTO_ID_MAP[symbol] || "bitcoin";
+  const url = `${COINGECKO_API_URL}/simple/price?ids=${coinId}&vs_currencies=usd`;
+  
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`CoinGecko price API error: ${response.status}`);
+  }
+  
   const data = await response.json();
-  return data.trades?.[formattedSymbol]?.p || 0;
+  return data[coinId]?.usd || 0;
 }
 
 // Get bars (auto-detect stock vs crypto)
@@ -301,6 +390,16 @@ export async function getAssetBars(
     return getCryptoBars(symbol, timeframe, limit);
   }
   return getBars(symbol, timeframe, limit);
+}
+
+// Check if crypto trading is available on Alpaca
+export function isCryptoTradingAvailable(): boolean {
+  return alpacaCryptoAvailable === true;
+}
+
+// Check if crypto data is available (CoinGecko fallback always works)
+export function isCryptoDataAvailable(): boolean {
+  return true; // CoinGecko is always available
 }
 
 // Market Status
