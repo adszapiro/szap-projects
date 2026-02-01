@@ -1,7 +1,7 @@
 // ============================================
 // Centralized Projects Data
 // ============================================
-// Links use relative paths - they'll work on alexszapiro.com via rewrites
+// Links use subdomains: backtester.alexszapiro.com, etc.
 
 export interface Project {
   title: string;
@@ -19,7 +19,7 @@ export const projects: Project[] = [
     title: "Algo Trading Backtester",
     description: "Professional-grade backtesting platform with TradingView-style charts, custom strategy editor, and multi-asset support. Built to validate trading strategies before risking real capital.",
     tech: "Next.js, TypeScript, Lightweight Charts, Monaco Editor",
-    link: "/backtester",
+    link: "https://backtester.alexszapiro.com",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -37,7 +37,7 @@ export const projects: Project[] = [
     title: "ResumeAI",
     description: "AI-powered resume optimization. Analyzes your resume against job descriptions, identifies missing keywords, and provides specific suggestions to improve your match score.",
     tech: "Next.js, TypeScript, OpenAI GPT-4",
-    link: "/resume-ai",
+    link: "https://resume.alexszapiro.com",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -46,7 +46,7 @@ export const projects: Project[] = [
     title: "WalletScope",
     description: "On-chain wallet analyzer for Ethereum. Enter any address to see token holdings, portfolio diversification, and risk scoring based on concentration and volatility.",
     tech: "Next.js, TypeScript, Ethereum RPC, CoinGecko",
-    link: "/wallet",
+    link: "https://wallet.alexszapiro.com",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -66,7 +66,7 @@ export const projects: Project[] = [
     title: "DevPulse",
     description: "GitHub activity dashboard. Visualize contributions, streaks, and top languages for any profile.",
     tech: "Next.js, GitHub API, Recharts",
-    link: "/devpulse",
+    link: "https://devpulse.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -75,7 +75,7 @@ export const projects: Project[] = [
     title: "API Tester",
     description: "Postman-like tool for testing REST APIs in your browser.",
     tech: "Next.js, TypeScript, Tailwind",
-    link: "/api-tester",
+    link: "https://api.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -84,7 +84,7 @@ export const projects: Project[] = [
     title: "SnippetVault",
     description: "Code snippet manager with syntax highlighting and search.",
     tech: "Next.js, TypeScript, Prism",
-    link: "/snippets",
+    link: "https://snippets.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -93,7 +93,7 @@ export const projects: Project[] = [
     title: "MarkdownPro",
     description: "Live markdown editor with split-view preview and export.",
     tech: "Next.js, TypeScript, Marked",
-    link: "/markdown",
+    link: "https://markdown.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -111,7 +111,7 @@ export const projects: Project[] = [
     title: "Todo App",
     description: "Task management with Supabase backend.",
     tech: "Next.js, Supabase",
-    link: "/todo",
+    link: "https://todo.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
