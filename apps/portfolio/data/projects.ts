@@ -17,6 +17,16 @@ export interface Project {
 
 export const projects: Project[] = [
   {
+    title: "MarkdownPro",
+    description: "Live markdown editor with split-view preview, dark/light themes, export to HTML, and local storage autosave.",
+    tech: "Next.js, TypeScript, Marked, localStorage",
+    link: "https://markdown-pro-nu.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "📝"
+  },
+  {
     title: "API Tester",
     description: "Postman-like tool for testing REST APIs in your browser. Send requests, view responses, manage headers.",
     tech: "Next.js, TypeScript, Tailwind CSS",
