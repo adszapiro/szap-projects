@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp, Settings, Calendar, DollarSign, Search, BarChart3, LayoutGrid, Shield, Zap, PieChart } from "lucide-react";
+import { TrendingUp, Settings, Calendar, DollarSign, Search, BarChart3, LayoutGrid, Shield, Zap, PieChart, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 interface HeaderProps {
@@ -24,13 +24,23 @@ export default function Header({
     <header className="h-14 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] flex items-center justify-between px-4">
       {/* Logo & Nav */}
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-white">AlgoBacktest</h1>
-            <p className="text-[10px] text-[var(--text-muted)]">Professional Trading Simulator</p>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://alexszapiro.com"
+            className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Portfolio
+          </a>
+          <div className="w-px h-6 bg-[var(--border-color)]" />
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-bold text-white">AlgoBacktest</h1>
+              <p className="text-[10px] text-[var(--text-muted)]">Professional Trading Simulator</p>
+            </div>
           </div>
         </div>
 

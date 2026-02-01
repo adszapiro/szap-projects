@@ -269,9 +269,12 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
         )}
         {data.length === 0 && !loading && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <BarChart3 className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-2" />
-              <p className="text-[var(--text-muted)]">No data available</p>
+            <div className="text-center max-w-sm">
+              <BarChart3 className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-3" />
+              <p className="text-white font-medium mb-1">Loading market data...</p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Select an asset from the watchlist or add a new one to view historical price data.
+              </p>
             </div>
           </div>
         )}

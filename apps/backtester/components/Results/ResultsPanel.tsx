@@ -37,10 +37,22 @@ export default function ResultsPanel({ result, error, loading, showCompareButton
   if (!result) {
     return (
       <div className="panel h-full flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-xs px-4">
           <BarChart3 className="w-10 h-10 text-[var(--text-muted)] mx-auto mb-3" />
-          <p className="text-sm text-[var(--text-muted)] mb-1">No results yet</p>
-          <p className="text-xs text-[var(--text-muted)]">Run a backtest to see results</p>
+          <p className="text-sm text-white font-medium mb-2">Ready to backtest</p>
+          <p className="text-xs text-[var(--text-muted)] mb-3">
+            Edit the strategy code on the left, then click &quot;Run&quot; to test it against historical data.
+          </p>
+          <div className="text-xs text-[var(--text-muted)] space-y-1">
+            <p className="flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              Green arrows = Buy signals
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              Red arrows = Sell signals
+            </p>
+          </div>
         </div>
       </div>
     );

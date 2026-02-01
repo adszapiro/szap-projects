@@ -121,6 +121,30 @@ function strategy(data, indicators, context) {
     setIsHydrated(true);
   }, []);
 
+  // Auto-run demo backtest on first visit
+  useEffect(() => {
+    const hasSeenDemo = localStorage.getItem("backtester-demo-shown");
+    if (!hasSeenDemo && priceData.length > 0 && !result && !loading) {
+      // Run the demo backtest after data loads
+      const runDemo = async () => {
+        setLoading(true);
+        try {
+          const executionResult = executeStrategy(strategyCode, priceData, initialCapital);
+          if (executionResult.success && executionResult.result) {
+            setResult(executionResult.result);
+            setMultiResults([{ asset: selectedAsset, result: executionResult.result }]);
+          }
+        } catch (err) {
+          console.error("Demo backtest failed:", err);
+        } finally {
+          setLoading(false);
+          localStorage.setItem("backtester-demo-shown", "true");
+        }
+      };
+      runDemo();
+    }
+  }, [priceData, result, loading, strategyCode, initialCapital, selectedAsset]);
+
   // Save watchlist to localStorage when it changes
   useEffect(() => {
     if (isHydrated) {
