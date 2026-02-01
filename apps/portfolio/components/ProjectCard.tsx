@@ -1,6 +1,6 @@
-// ============================================
-// ProjectCard Component - With Links Support
-// ============================================
+"use client";
+
+import { ExternalLink } from "lucide-react";
 
 interface ProjectCardProps {
   title: string;
@@ -18,29 +18,23 @@ export default function ProjectCard({ title, description, tech, link, status = "
   const StatusBadge = () => {
     if (status === "live" && link) {
       return (
-        <div className="absolute top-4 right-4">
-          <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full font-medium flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Live
-          </span>
-        </div>
+        <span className="text-xs px-2 py-1 bg-green-900/50 text-green-300 rounded-full font-medium flex items-center gap-1 border border-green-700">
+          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+          Live
+        </span>
       );
     }
     if (status === "in-progress") {
       return (
-        <div className="absolute top-4 right-4">
-          <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full font-medium">
-            In Progress
-          </span>
-        </div>
+        <span className="text-xs px-2 py-1 bg-blue-900/50 text-blue-300 rounded-full font-medium border border-blue-700">
+          In Progress
+        </span>
       );
     }
     return (
-      <div className="absolute top-4 right-4">
-        <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full font-medium">
-          Coming Soon
-        </span>
-      </div>
+      <span className="text-xs px-2 py-1 bg-yellow-900/50 text-yellow-300 rounded-full font-medium border border-yellow-700">
+        Coming Soon
+      </span>
     );
   };
 
@@ -51,34 +45,35 @@ export default function ProjectCard({ title, description, tech, link, status = "
     if (title.includes("Backtester") || title.includes("Trading")) return "📈";
     if (title.includes("Agent") || title.includes("AI")) return "🤖";
     if (title.includes("Bot")) return "💹";
+    if (title.includes("Resume")) return "📄";
+    if (title.includes("Wallet")) return "🔍";
     return "🚀";
   };
   
-  // The card content - same whether it's a link or not
   const cardContent = (
-    <>
-      {/* Status Badge */}
-      <StatusBadge />
-      
-      {/* Project icon */}
-      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-        <span className="text-2xl">{getDefaultIcon()}</span>
+    <div className="relative p-6 bg-gray-800/50 border border-gray-700 rounded-xl h-full transition-all duration-300 group-hover:border-purple-500/50 group-hover:bg-gray-800/80">
+      {/* Header with icon and status */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-12 h-12 bg-purple-900/50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform border border-purple-700/50">
+          <span className="text-2xl">{getDefaultIcon()}</span>
+        </div>
+        <StatusBadge />
       </div>
       
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+      <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-purple-300 transition-colors">
         {title}
       </h3>
       
-      <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3">
+      <p className="text-gray-400 mb-4 line-clamp-3 text-sm">
         {description}
       </p>
       
       {/* Tech stack tags */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         {tech.split(", ").map((t) => (
           <span 
             key={t}
-            className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded"
+            className="text-xs px-2 py-1 bg-gray-700/50 text-gray-400 rounded border border-gray-600"
           >
             {t}
           </span>
@@ -87,28 +82,24 @@ export default function ProjectCard({ title, description, tech, link, status = "
       
       {/* View Project link for live projects */}
       {isLive && (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <span className="text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:underline">
-            View Project →
-          </span>
+        <div className="mt-auto pt-4 border-t border-gray-700 flex items-center gap-2 text-purple-400 text-sm font-medium group-hover:text-purple-300">
+          View Project
+          <ExternalLink className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </div>
       )}
-    </>
+    </div>
   );
-
-  // Wrapper - either a link or a div
-  const wrapperClasses = `group relative p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 ${isLive ? 'cursor-pointer' : ''}`;
 
   if (link) {
     return (
-      <a href={link} className={wrapperClasses}>
+      <a href={link} target="_blank" rel="noopener noreferrer" className="group block h-full">
         {cardContent}
       </a>
     );
   }
 
   return (
-    <div className={wrapperClasses}>
+    <div className="group h-full">
       {cardContent}
     </div>
   );
