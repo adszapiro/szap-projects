@@ -1,0 +1,55 @@
+---
+description: AlgoBacktester project conventions and patterns
+alwaysApply: true
+---
+
+# AlgoBacktester Project Conventions
+
+## Tech Stack
+- Next.js 16 with App Router, TypeScript, Tailwind CSS
+- `lightweight-charts` for TradingView-style candlestick charts
+- `@monaco-editor/react` for in-browser strategy editing
+- Supabase for data caching (lazy-initialized client)
+
+## Styling
+- Dark theme using CSS variables in `globals.css`
+- Primary bg: `var(--bg-primary)` (#09090b)
+- Secondary bg: `var(--bg-secondary)` (#111113)
+- Use `.panel` class for card containers
+- Use `.metric-card` for stat displays
+- Icons from `lucide-react`
+
+## Component Patterns
+```
+components/
+  Layout/Header.tsx    - Top nav with date/capital inputs
+  Sidebar/Sidebar.tsx  - Asset watchlist
+  Chart/ChartPanel.tsx - Candlestick chart with indicators
+  Editor/StrategyEditor.tsx - Monaco editor
+  Results/ResultsPanel.tsx  - Backtest metrics
+  Risk/RiskDashboard.tsx    - VaR, beta, volatility
+```
+
+## Data Fetching
+- Stocks: Yahoo Finance API via `/api/data`
+- Crypto: CoinGecko API via `/api/data`
+- Cache: Supabase `price_cache` table
+
+## Chart Lifecycle (Critical)
+When using `lightweight-charts`, always:
+1. Wrap chart creation in `useCallback`
+2. Use `try/catch` around `chart.remove()` in cleanup
+3. Check if chart exists before calling `applyOptions`
+
+## Strategy Execution
+Strategies are user-defined JS functions with signature:
+```typescript
+function strategy(data, indicators, context) {
+  // data: OHLCV[], indicators: {sma, ema, rsi, macd, bollinger}
+  // context: {buy(i), sell(i), position, cash}
+}
+```
+
+## State Persistence
+- Watchlist: localStorage key `backtester-watchlist`
+- Always check `isHydrated` before saving to avoid overwriting with defaults
