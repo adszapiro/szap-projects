@@ -1,6 +1,7 @@
 // ============================================
 // Centralized Projects Data
 // ============================================
+// Links use relative paths - they'll work on alexszapiro.com via rewrites
 
 export interface Project {
   title: string;
@@ -8,17 +9,17 @@ export interface Project {
   tech: string;
   link: string | null;
   status: "live" | "coming-soon" | "in-progress";
-  tier: "featured" | "standard"; // Featured = top 4 with more detail
+  tier: "featured" | "standard";
   repo?: string;
 }
 
 export const projects: Project[] = [
-  // FEATURED TIER - Top 4 projects with depth
+  // FEATURED TIER
   {
     title: "Algo Trading Backtester",
     description: "Professional-grade backtesting platform with TradingView-style charts, custom strategy editor, and multi-asset support. Built to validate trading strategies before risking real capital.",
     tech: "Next.js, TypeScript, Lightweight Charts, Monaco Editor",
-    link: "https://szap-backtester.vercel.app",
+    link: "/backtester",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -36,7 +37,7 @@ export const projects: Project[] = [
     title: "ResumeAI",
     description: "AI-powered resume optimization. Analyzes your resume against job descriptions, identifies missing keywords, and provides specific suggestions to improve your match score.",
     tech: "Next.js, TypeScript, OpenAI GPT-4",
-    link: "https://resume-ai-sooty-seven.vercel.app",
+    link: "/resume-ai",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -45,13 +46,13 @@ export const projects: Project[] = [
     title: "WalletScope",
     description: "On-chain wallet analyzer for Ethereum. Enter any address to see token holdings, portfolio diversification, and risk scoring based on concentration and volatility.",
     tech: "Next.js, TypeScript, Ethereum RPC, CoinGecko",
-    link: "https://wallet-scope.vercel.app",
+    link: "/wallet",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
   },
   
-  // STANDARD TIER - Other projects
+  // STANDARD TIER
   {
     title: "Paper Trading Bot",
     description: "Live paper trading dashboard connected to Alpaca. Monitor positions, execute trades, and track performance.",
@@ -65,7 +66,7 @@ export const projects: Project[] = [
     title: "DevPulse",
     description: "GitHub activity dashboard. Visualize contributions, streaks, and top languages for any profile.",
     tech: "Next.js, GitHub API, Recharts",
-    link: "https://devpulse-ivory.vercel.app",
+    link: "/devpulse",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -74,7 +75,7 @@ export const projects: Project[] = [
     title: "API Tester",
     description: "Postman-like tool for testing REST APIs in your browser.",
     tech: "Next.js, TypeScript, Tailwind",
-    link: "https://api-tester-two-teal.vercel.app",
+    link: "/api-tester",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -83,7 +84,7 @@ export const projects: Project[] = [
     title: "SnippetVault",
     description: "Code snippet manager with syntax highlighting and search.",
     tech: "Next.js, TypeScript, Prism",
-    link: "https://snippet-vault-lime.vercel.app",
+    link: "/snippets",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -92,7 +93,7 @@ export const projects: Project[] = [
     title: "MarkdownPro",
     description: "Live markdown editor with split-view preview and export.",
     tech: "Next.js, TypeScript, Marked",
-    link: "https://markdown-pro-nu.vercel.app",
+    link: "/markdown",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
@@ -110,7 +111,7 @@ export const projects: Project[] = [
     title: "Todo App",
     description: "Task management with Supabase backend.",
     tech: "Next.js, Supabase",
-    link: "https://alexszapiro-to-do.vercel.app",
+    link: "/todo",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
