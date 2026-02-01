@@ -1,0 +1,73 @@
+"use client";
+
+import { TrendingUp, Settings, Calendar, DollarSign } from "lucide-react";
+
+interface HeaderProps {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (date: string) => void;
+  onEndDateChange: (date: string) => void;
+  initialCapital: number;
+  onCapitalChange: (capital: number) => void;
+}
+
+export default function Header({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  initialCapital,
+  onCapitalChange,
+}: HeaderProps) {
+  return (
+    <header className="h-14 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] flex items-center justify-between px-4">
+      {/* Logo */}
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+          <TrendingUp className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-sm font-bold text-white">AlgoBacktest</h1>
+          <p className="text-[10px] text-[var(--text-muted)]">Professional Trading Simulator</p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-6">
+        {/* Date Range */}
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-white text-xs px-2 py-1.5 rounded"
+          />
+          <span className="text-[var(--text-muted)] text-xs">to</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => onEndDateChange(e.target.value)}
+            className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-white text-xs px-2 py-1.5 rounded"
+          />
+        </div>
+
+        {/* Capital */}
+        <div className="flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-[var(--text-muted)]" />
+          <input
+            type="number"
+            value={initialCapital}
+            onChange={(e) => onCapitalChange(Number(e.target.value))}
+            className="bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-white text-xs px-2 py-1.5 rounded w-24"
+          />
+        </div>
+
+        {/* Settings */}
+        <button className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors">
+          <Settings className="w-4 h-4 text-[var(--text-muted)]" />
+        </button>
+      </div>
+    </header>
+  );
+}
