@@ -9,7 +9,7 @@ export default function About() {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="text-2xl font-semibold text-white mb-8"
+        className="text-2xl font-semibold text-[var(--text)] mb-8"
       >
         About
       </motion.h2>
@@ -20,22 +20,22 @@ export default function About() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.1 }}
-          className="text-gray-400 space-y-5 leading-relaxed"
+          className="text-[var(--text-secondary)] space-y-5 leading-relaxed"
         >
           <p className="text-lg">
-            I&apos;m a student at the <span className="text-white">University of Michigan</span> studying 
+            I&apos;m a student at the <span className="text-[var(--text)]">University of Michigan</span> studying 
             Economics with a focus on Real Estate, while building software through the 
             School of Information. Expected graduation: 2028.
           </p>
           
           <p className="text-lg">
             My background spans finance, entrepreneurship, and technology. I&apos;ve worked as a 
-            <span className="text-white"> Private Credit Intern at Churchill Real Estate</span>, 
+            <span className="text-[var(--text)]"> Private Credit Intern at Churchill Real Estate</span>, 
             founded a luxury goods business, and led investment clubs. Now I&apos;m combining 
             my business background with software engineering.
           </p>
 
-          <p className="text-lg text-gray-500">
+          <p className="text-lg text-[var(--text-muted)]">
             Outside of work: go-karts, college athletics, NFL, padel, and vinyl collecting.
           </p>
         </motion.div>

@@ -25,11 +25,10 @@ export default function Home() {
   const standardProjects = getStandardProjects();
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-white">
-      {/* Skip link */}
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--accent)] focus:text-white focus:rounded-lg"
       >
         Skip to main content
       </a>
@@ -41,13 +40,12 @@ export default function Home() {
 
         <About />
 
-        {/* Skills - Simple inline list */}
         <section id="skills" className="mb-24 scroll-mt-20">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-2xl font-semibold text-white mb-6"
+            className="text-2xl font-semibold text-[var(--text)] mb-6"
           >
             Skills
           </motion.h2>
@@ -62,7 +60,7 @@ export default function Home() {
             {skills.map((skill) => (
               <span 
                 key={skill}
-                className="px-3 py-1.5 bg-gray-800 text-gray-400 text-sm rounded-lg border border-gray-700"
+                className="px-3 py-1.5 bg-[var(--bg-secondary)] text-[var(--text-secondary)] text-sm rounded-lg border border-[var(--border)]"
               >
                 {skill}
               </span>
@@ -70,19 +68,17 @@ export default function Home() {
           </motion.div>
         </section>
 
-        {/* Projects Section - Two tiers */}
         <section id="projects" className="mb-24 scroll-mt-20" aria-labelledby="projects-heading">
           <motion.h2 
             id="projects-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-2xl font-semibold text-white mb-8"
+            className="text-2xl font-semibold text-[var(--text)] mb-8"
           >
             Projects
           </motion.h2>
 
-          {/* Featured Projects - 2x2 grid with more detail */}
           <div className="grid gap-4 md:grid-cols-2 mb-8">
             {featuredProjects.map((project, i) => (
               <motion.div
@@ -104,7 +100,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Standard Projects - Compact 3-column grid */}
           <div className="grid gap-3 md:grid-cols-3">
             {standardProjects.map((project, i) => (
               <motion.div

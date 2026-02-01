@@ -5,13 +5,12 @@ import { motion } from "framer-motion";
 export default function Hero() {
   return (
     <section id="home" className="mb-24 pt-32 pb-16">
-      {/* Content */}
       <div className="max-w-3xl">
         <motion.h1 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight"
+          className="text-4xl md:text-5xl font-bold text-[var(--text)] mb-6 leading-tight"
         >
           Alex Szapiro
         </motion.h1>
@@ -20,18 +19,18 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-xl md:text-2xl text-gray-400 mb-8 leading-relaxed"
+          className="text-xl md:text-2xl text-[var(--text-secondary)] mb-8 leading-relaxed"
         >
           Building at the intersection of{" "}
-          <span className="text-white">finance</span> and{" "}
-          <span className="text-white">technology</span>.
+          <span className="text-[var(--text)]">finance</span> and{" "}
+          <span className="text-[var(--text)]">technology</span>.
         </motion.p>
 
         <motion.p 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-lg text-gray-500 mb-10"
+          className="text-lg text-[var(--text-muted)] mb-10"
         >
           School of Information @ University of Michigan
         </motion.p>
@@ -44,19 +43,19 @@ export default function Hero() {
         >
           <a
             href="#projects"
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors"
+            className="px-6 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-lg font-medium transition-colors"
           >
             View Projects
           </a>
           <a
             href="/resume"
-            className="px-6 py-3 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-800 hover:border-gray-600 transition-colors font-medium"
+            className="px-6 py-3 border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)] transition-colors font-medium"
           >
             Resume
           </a>
           <a
             href="#contact"
-            className="px-6 py-3 border border-gray-700 text-gray-300 rounded-lg hover:bg-gray-800 hover:border-gray-600 transition-colors font-medium"
+            className="px-6 py-3 border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)] transition-colors font-medium"
           >
             Contact
           </a>

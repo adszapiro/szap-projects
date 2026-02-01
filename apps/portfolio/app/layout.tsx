@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,9 +15,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ============================================
-// Metadata - What appears in browser tabs & search results
-// ============================================
 export const metadata: Metadata = {
   title: "Alex Szapiro | Portfolio",
   description: "University of Michigan student passionate about finance, technology, and entrepreneurship. Studying Economics with a focus on Real Estate and exploring software development.",
@@ -28,14 +26,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-        {/* Vercel Analytics - tracks page views and web vitals */}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
         <Analytics />
-        {/* Vercel Speed Insights - Core Web Vitals monitoring */}
         <SpeedInsights />
       </body>
     </html>
