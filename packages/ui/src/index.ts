@@ -22,3 +22,6 @@ export { useKeyboardShortcuts, ShortcutsPanel, Kbd } from "./keyboard-shortcuts"
 
 // Existing components
 export { Card } from "./card";
+
+// Analytics & Monitoring
+export { Analytics, trackEvent, trackError } from "./analytics";
