@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { createChart, IChartApi, ISeriesApi, CandlestickData, LineData, Time } from "lightweight-charts";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createChart, IChartApi, CandlestickData, LineData, Time } from "lightweight-charts";
 import { OHLCV, Trade } from "@/lib/types";
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 
@@ -15,8 +15,6 @@ interface ChartPanelProps {
 export default function ChartPanel({ data, trades, loading, symbol }: ChartPanelProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const [activeIndicators, setActiveIndicators] = useState<string[]>(["sma20", "sma50"]);
 
   // Calculate stats
@@ -25,16 +23,24 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
   const priceChange = latestPrice - firstPrice;
   const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
 
-  useEffect(() => {
+  // Memoize chart creation to avoid recreating on every render
+  const initChart = useCallback(() => {
     if (!chartContainerRef.current || data.length === 0) return;
 
-    // Clean up existing chart
+    // Clean up existing chart safely
     if (chartRef.current) {
-      chartRef.current.remove();
+      try {
+        chartRef.current.remove();
+      } catch {
+        // Chart already disposed, ignore
+      }
+      chartRef.current = null;
     }
 
     // Create chart
     const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight,
       layout: {
         background: { color: "#111113" },
         textColor: "#a1a1aa",
@@ -79,8 +85,6 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
       wickDownColor: "#ef4444",
     });
 
-    candleSeriesRef.current = candleSeries;
-
     // Format data for lightweight-charts
     const candleData: CandlestickData[] = data.map((d) => ({
       time: d.date as Time,
@@ -98,8 +102,6 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
       priceFormat: { type: "volume" },
       priceScaleId: "",
     });
-
-    volumeSeriesRef.current = volumeSeries;
 
     const volumeData = data.map((d) => ({
       time: d.date as Time,
@@ -119,7 +121,6 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
         lineWidth: 1,
         title: "SMA 20",
       });
-
       const sma20Data = calculateSMA(data, 20);
       sma20Series.setData(sma20Data);
     }
@@ -130,7 +131,6 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
         lineWidth: 1,
         title: "SMA 50",
       });
-
       const sma50Data = calculateSMA(data, 50);
       sma50Series.setData(sma50Data);
     }
@@ -144,31 +144,46 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
         shape: trade.type === "buy" ? ("arrowUp" as const) : ("arrowDown" as const),
         text: trade.type === "buy" ? "BUY" : "SELL",
       }));
-
       candleSeries.setMarkers(markers);
     }
 
     // Fit content
     chart.timeScale().fitContent();
 
+    return chart;
+  }, [data, trades, activeIndicators]);
+
+  useEffect(() => {
+    const chart = initChart();
+
     // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
-        });
+        try {
+          chartRef.current.applyOptions({
+            width: chartContainerRef.current.clientWidth,
+            height: chartContainerRef.current.clientHeight,
+          });
+        } catch {
+          // Chart disposed, ignore
+        }
       }
     };
 
     window.addEventListener("resize", handleResize);
-    handleResize();
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      if (chart) {
+        try {
+          chart.remove();
+        } catch {
+          // Already disposed
+        }
+      }
+      chartRef.current = null;
     };
-  }, [data, trades, activeIndicators]);
+  }, [initChart]);
 
   const toggleIndicator = (indicator: string) => {
     setActiveIndicators((prev) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { createChart, IChartApi, Time } from "lightweight-charts";
 import { AssetResult, Asset } from "@/app/page";
 import { X, TrendingUp, TrendingDown, Trophy } from "lucide-react";
@@ -35,16 +35,23 @@ export default function ComparisonPanel({
     (a, b) => b.result.metrics.totalReturnPercent - a.result.metrics.totalReturnPercent
   );
 
-  useEffect(() => {
-    if (!chartContainerRef.current || results.length === 0) return;
+  const initChart = useCallback(() => {
+    if (!chartContainerRef.current || results.length === 0) return null;
 
-    // Clean up existing chart
+    // Clean up existing chart safely
     if (chartRef.current) {
-      chartRef.current.remove();
+      try {
+        chartRef.current.remove();
+      } catch {
+        // Already disposed
+      }
+      chartRef.current = null;
     }
 
     // Create chart
     const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight,
       layout: {
         background: { color: "#111113" },
         textColor: "#a1a1aa",
@@ -100,24 +107,40 @@ export default function ComparisonPanel({
     // Fit content
     chart.timeScale().fitContent();
 
+    return chart;
+  }, [results]);
+
+  useEffect(() => {
+    const chart = initChart();
+
     // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
-        });
+        try {
+          chartRef.current.applyOptions({
+            width: chartContainerRef.current.clientWidth,
+            height: chartContainerRef.current.clientHeight,
+          });
+        } catch {
+          // Chart disposed
+        }
       }
     };
 
     window.addEventListener("resize", handleResize);
-    handleResize();
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      if (chart) {
+        try {
+          chart.remove();
+        } catch {
+          // Already disposed
+        }
+      }
+      chartRef.current = null;
     };
-  }, [results]);
+  }, [initChart]);
 
   return (
     <div className="panel h-full flex flex-col">
