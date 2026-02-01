@@ -7,9 +7,24 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "check-types": "turbo run check-types",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "dev:portfolio": "npm run dev --workspace=portfolio",
+    "dev:todo": "npm run dev --workspace=todo-app",
+    "dev:backtester": "npm run dev --workspace=backtester",
+    "dev:trading": "npm run dev --workspace=trading-bot",
+    "build:all": "turbo run build",
+    "deploy": "vercel --prod",
+    "deploy:portfolio": "vercel --prod --cwd apps/portfolio",
+    "deploy:todo": "vercel --prod --cwd apps/todo-app",
+    "deploy:backtester": "vercel --prod --cwd apps/backtester",
+    "deploy:trading": "vercel --prod --cwd apps/trading-bot",
+    "test": "turbo run test",
+    "test:e2e": "playwright test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "setup": "npm install && npm run build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "prettier": "^3.6.0",
     "prettier-plugin-tailwindcss": "^0.7.1",
     "turbo": "^2.8.1"
