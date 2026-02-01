@@ -17,6 +17,16 @@ export interface Project {
 
 export const projects: Project[] = [
   {
+    title: "ResumeAI",
+    description: "AI-powered resume tailoring SaaS. Paste your resume + job description, get specific suggestions to improve your match score.",
+    tech: "Next.js, TypeScript, OpenAI GPT-4, Tailwind CSS",
+    link: "https://szap-resume-ai.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "📄"
+  },
+  {
     title: "Algo Trading Backtester",
     description: "A professional-grade backtesting platform with TradingView-style charts, custom strategy editor, and multi-asset support.",
     tech: "Next.js, TypeScript, Lightweight Charts, Monaco Editor",
