@@ -1,4 +1,6 @@
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
 import cron from "node-cron";
 import { debateStrategy, analyzeAndLearn, validateStrategy } from "./brain/orchestrator.js";
 import {

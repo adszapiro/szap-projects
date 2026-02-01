@@ -1,8 +1,15 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let client: OpenAI | null = null;
+
+function getClient(): OpenAI {
+  if (!client) {
+    client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return client;
+}
 
 export interface ModelResponse {
   content: string;
@@ -64,7 +71,7 @@ ${context.marketData || "Not provided"}
 `
     : "";
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-4o",
     max_tokens: 4096,
     messages: [

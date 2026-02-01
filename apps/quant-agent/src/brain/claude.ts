@@ -1,8 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+let client: Anthropic | null = null;
+
+function getClient(): Anthropic {
+  if (!client) {
+    client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+  }
+  return client;
+}
 
 export interface ModelResponse {
   content: string;
@@ -48,7 +55,7 @@ ${context.marketData || "Not provided"}
 `
     : "";
 
-  const response = await client.messages.create({
+  const response = await getClient().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
