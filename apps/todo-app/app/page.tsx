@@ -1,39 +1,29 @@
-// ============================================
-// Todo App - Now with Supabase Database!
-// ============================================
-// Tasks are stored in a real database and sync in real-time
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { supabase, Todo } from "@/lib/supabase";
 
-// Category colors for visual distinction
-const categoryColors = {
-  personal: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  work: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  shopping: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  other: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+const categoryConfig = {
+  personal: { bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", border: "border-violet-500/20" },
+  work: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/20" },
+  shopping: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/20" },
+  other: { bg: "bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-500/20" },
 };
 
 export default function TodoApp() {
-  // ============================================
-  // STATE
-  // ============================================
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputText, setInputText] = useState("");
-  const [category, setCategory] = useState<Todo["category"]>("personal");
+  const [category, setCategory] = useState<Todo["category"]>("work");
   const [dueDate, setDueDate] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "completed" | "email">("all");
   const [loading, setLoading] = useState(true);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "email">("all");
 
-  // ============================================
-  // FETCH TODOS FROM SUPABASE
-  // ============================================
   const fetchTodos = async () => {
     const { data, error } = await supabase
       .from("todos")
       .select("*")
+      .order("due_date", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -44,46 +34,25 @@ export default function TodoApp() {
     setLoading(false);
   };
 
-  // ============================================
-  // REAL-TIME SUBSCRIPTION
-  // ============================================
   useEffect(() => {
-    // Fetch initial todos
     fetchTodos();
 
-    // Subscribe to real-time changes
     const channel = supabase
       .channel("todos-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "todos" },
-        (payload) => {
-          console.log("Real-time update:", payload);
-          
-          if (payload.eventType === "INSERT") {
-            setTodos((prev) => [payload.new as Todo, ...prev]);
-          } else if (payload.eventType === "UPDATE") {
-            setTodos((prev) =>
-              prev.map((todo) =>
-                todo.id === payload.new.id ? (payload.new as Todo) : todo
-              )
-            );
-          } else if (payload.eventType === "DELETE") {
-            setTodos((prev) => prev.filter((todo) => todo.id !== payload.old.id));
-          }
+        () => {
+          fetchTodos(); // Refetch on any change for simplicity
         }
       )
       .subscribe();
 
-    // Cleanup subscription on unmount
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
 
-  // ============================================
-  // ADD TODO
-  // ============================================
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inputText.trim() === "") return;
@@ -103,9 +72,6 @@ export default function TodoApp() {
     }
   };
 
-  // ============================================
-  // TOGGLE TODO COMPLETION
-  // ============================================
   const toggleTodo = async (id: string, completed: boolean) => {
     const { error } = await supabase
       .from("todos")
@@ -117,21 +83,22 @@ export default function TodoApp() {
     }
   };
 
-  // ============================================
-  // DELETE TODO
-  // ============================================
   const deleteTodo = async (id: string) => {
+    // Optimistic update - remove from UI immediately
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+    
     const { error } = await supabase.from("todos").delete().eq("id", id);
 
     if (error) {
       console.error("Error deleting todo:", error);
+      fetchTodos(); // Refetch if error
     }
   };
 
-  // ============================================
-  // CLEAR COMPLETED
-  // ============================================
   const clearCompleted = async () => {
+    const completedIds = todos.filter(t => t.completed).map(t => t.id);
+    setTodos((prev) => prev.filter((todo) => !todo.completed));
+    
     const { error } = await supabase
       .from("todos")
       .delete()
@@ -139,159 +106,227 @@ export default function TodoApp() {
 
     if (error) {
       console.error("Error clearing completed:", error);
+      fetchTodos();
     }
   };
 
-  // ============================================
-  // FILTERED TODOS
-  // ============================================
   const filteredTodos = todos.filter((todo) => {
-    if (filter === "active") return !todo.completed;
-    if (filter === "completed") return todo.completed;
+    // Status filter
+    if (filter === "active" && todo.completed) return false;
+    if (filter === "completed" && !todo.completed) return false;
+    
+    // Source filter
+    if (sourceFilter === "email" && todo.source !== "email") return false;
+    if (sourceFilter === "manual" && todo.source !== "manual") return false;
+    
     return true;
   });
 
   const activeTodoCount = todos.filter((todo) => !todo.completed).length;
+  const emailTodoCount = todos.filter((todo) => todo.source === "email" && !todo.completed).length;
 
-  // ============================================
-  // FORMAT DATE FOR DISPLAY
-  // ============================================
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const date = new Date(dateString + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (date.getTime() === today.getTime()) return "Today";
+    if (date.getTime() === tomorrow.getTime()) return "Tomorrow";
+    
+    return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
+  const isOverdue = (dateString: string | null) => {
+    if (!dateString) return false;
+    const date = new Date(dateString + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-violet-400/20 rounded-full blur-3xl" />
+      </div>
+      
+      <div className="relative max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Todo App
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full mb-4">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">Synced with Amanda's emails</span>
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 dark:from-white dark:via-blue-200 dark:to-white bg-clip-text text-transparent mb-2">
+            Alex's Tasks
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Synced with Supabase • Real-time updates
-          </p>
-          <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-            ✓ Connected to database
+          <p className="text-slate-600 dark:text-slate-400">
+            {activeTodoCount} active • {emailTodoCount} from email
           </p>
         </header>
 
         {/* Add Todo Form */}
-        <form onSubmit={addTodo} className="mb-6">
-          <div className="flex gap-2 mb-3">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="What needs to be done?"
-              className="flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Add
-            </button>
-          </div>
-          
-          <div className="flex gap-2">
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Todo["category"])}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="personal">Personal</option>
-              <option value="work">Work</option>
-              <option value="shopping">Shopping</option>
-              <option value="other">Other</option>
-            </select>
+        <form onSubmit={addTodo} className="mb-8">
+          <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 p-4">
+            <div className="flex gap-3 mb-3">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Add a new task..."
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-100/50 dark:bg-slate-700/50 border-0 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              />
+              <button
+                type="submit"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Add
+              </button>
+            </div>
             
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Due date"
-            />
+            <div className="flex flex-wrap gap-2">
+              {(["work", "personal", "shopping", "other"] as const).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    category === cat
+                      ? `${categoryConfig[cat].bg} ${categoryConfig[cat].text} border ${categoryConfig[cat].border}`
+                      : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </button>
+              ))}
+              <div className="flex-1" />
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="px-3 py-1.5 rounded-lg bg-slate-100/50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 text-sm border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              />
+            </div>
           </div>
         </form>
 
         {/* Filter Tabs */}
-        <div className="flex gap-2 mb-4">
-          {(["all", "active", "completed"] as const).map((filterOption) => (
-            <button
-              key={filterOption}
-              onClick={() => setFilter(filterOption)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === filterOption
-                  ? "bg-blue-600 text-white"
-                  : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-            >
-              {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <div className="flex bg-white/60 dark:bg-slate-800/60 backdrop-blur rounded-xl p-1 border border-slate-200/50 dark:border-slate-700/50">
+            {(["all", "active", "completed"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  filter === f
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex bg-white/60 dark:bg-slate-800/60 backdrop-blur rounded-xl p-1 border border-slate-200/50 dark:border-slate-700/50">
+            {(["all", "email", "manual"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSourceFilter(s)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  sourceFilter === s
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {s === "email" && "📧 "}
+                {s === "manual" && "✏️ "}
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Todo List */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="space-y-3">
           {loading ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-              Loading todos...
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl p-12 text-center">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-slate-500">Loading tasks...</p>
             </div>
           ) : filteredTodos.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-              {filter === "all"
-                ? "No todos yet. Add one above!"
-                : filter === "active"
-                ? "No active todos. Great job!"
-                : "No completed todos yet."}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-12 text-center">
+              <div className="text-4xl mb-3">
+                {filter === "completed" ? "🎉" : sourceFilter === "email" ? "📬" : "✨"}
+              </div>
+              <p className="text-slate-500 dark:text-slate-400">
+                {filter === "completed"
+                  ? "No completed tasks yet"
+                  : filter === "active"
+                  ? "All caught up! Great job!"
+                  : sourceFilter === "email"
+                  ? "No email tasks - check for new emails from Amanda"
+                  : "No tasks yet. Add one above!"}
+              </p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredTodos.map((todo) => (
-                <li
-                  key={todo.id}
-                  className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
+            filteredTodos.map((todo) => (
+              <div
+                key={todo.id}
+                className={`group bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-xl border transition-all hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 ${
+                  todo.completed 
+                    ? "border-slate-200/30 dark:border-slate-700/30 opacity-60" 
+                    : "border-slate-200/50 dark:border-slate-700/50"
+                }`}
+              >
+                <div className="flex items-start gap-4 p-4">
                   {/* Checkbox */}
                   <button
                     onClick={() => toggleTodo(todo.id, todo.completed)}
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                       todo.completed
-                        ? "bg-green-500 border-green-500 text-white"
-                        : "border-gray-300 dark:border-gray-600 hover:border-blue-500"
+                        ? "bg-gradient-to-br from-green-400 to-emerald-500 border-transparent text-white shadow-lg shadow-green-500/25"
+                        : "border-slate-300 dark:border-slate-600 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                     }`}
                   >
                     {todo.completed && (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     )}
                   </button>
 
-                  {/* Todo Text & Details */}
-                  <div className="flex-1">
-                    <p className={`text-gray-900 dark:text-white ${todo.completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-slate-900 dark:text-white leading-relaxed ${
+                      todo.completed ? "line-through text-slate-400 dark:text-slate-500" : ""
+                    }`}>
                       {todo.text}
                     </p>
-                    <div className="flex gap-2 mt-1">
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${categoryColors[todo.category]}`}>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-md font-medium ${categoryConfig[todo.category].bg} ${categoryConfig[todo.category].text}`}>
                         {todo.category}
                       </span>
                       {todo.due_date && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          Due: {formatDate(todo.due_date)}
+                        <span className={`text-xs font-medium ${
+                          isOverdue(todo.due_date) && !todo.completed
+                            ? "text-red-500"
+                            : formatDate(todo.due_date) === "Today"
+                            ? "text-amber-500"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}>
+                          {isOverdue(todo.due_date) && !todo.completed ? "⚠️ " : ""}
+                          {formatDate(todo.due_date)}
                         </span>
                       )}
                       {todo.source === "email" && (
-                        <span className="text-xs text-blue-500 dark:text-blue-400">
-                          📧 from email
+                        <span className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 font-medium">
+                          📧 Amanda
                         </span>
                       )}
                     </div>
@@ -300,42 +335,45 @@ export default function TodoApp() {
                   {/* Delete Button */}
                   <button
                     onClick={() => deleteTodo(todo.id)}
-                    className="text-gray-400 hover:text-red-500 transition-colors"
+                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                     </svg>
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Footer */}
-          {todos.length > 0 && (
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">
-                {activeTodoCount} item{activeTodoCount !== 1 ? "s" : ""} left
-              </span>
-              {todos.some((todo) => todo.completed) && (
-                <button
-                  onClick={clearCompleted}
-                  className="text-gray-500 hover:text-red-500 transition-colors text-sm"
-                >
-                  Clear completed
-                </button>
-              )}
-            </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
 
-        {/* Back to Portfolio Link */}
-        <div className="text-center mt-8">
+        {/* Footer Stats */}
+        {todos.length > 0 && (
+          <div className="flex items-center justify-between mt-6 px-2">
+            <span className="text-sm text-slate-500 dark:text-slate-400">
+              {activeTodoCount} task{activeTodoCount !== 1 ? "s" : ""} remaining
+            </span>
+            {todos.some((todo) => todo.completed) && (
+              <button
+                onClick={clearCompleted}
+                className="text-sm text-slate-500 hover:text-red-500 transition-colors"
+              >
+                Clear completed
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Back to Portfolio */}
+        <div className="text-center mt-12 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
           <a
             href="https://portfolio-adszapiro.vercel.app"
-            className="text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm"
+            className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm transition-colors"
           >
-            ← Back to Portfolio
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Portfolio
           </a>
         </div>
       </div>
