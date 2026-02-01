@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import {
   Code2,
@@ -12,6 +12,7 @@ import {
   Check,
   X,
   Folder,
+  Keyboard,
 } from "lucide-react";
 import {
   Snippet,
@@ -43,12 +44,60 @@ export default function Home() {
   const [selectedSnippet, setSelectedSnippet] = useState<Snippet | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // New snippet form state
   const [newTitle, setNewTitle] = useState("");
   const [newCode, setNewCode] = useState("");
   const [newLanguage, setNewLanguage] = useState("javascript");
   const [newTags, setNewTags] = useState("");
+
+  // Keyboard shortcuts (Nielsen #7: Flexibility and Efficiency)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        // Cmd+S to save when creating
+        if ((e.metaKey || e.ctrlKey) && e.key === "s" && isCreating) {
+          e.preventDefault();
+          if (newTitle.trim() && newCode.trim()) {
+            handleCreate();
+          }
+        }
+        return;
+      }
+      
+      // Cmd+N to create new snippet
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        setIsCreating(true);
+        setSelectedSnippet(null);
+      }
+      // Cmd+C to copy selected snippet code
+      if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedSnippet) {
+        // Let default copy work if there's a selection
+        const selection = window.getSelection();
+        if (!selection || selection.toString().length === 0) {
+          e.preventDefault();
+          handleCopy(selectedSnippet.code, selectedSnippet.id);
+        }
+      }
+      // ? to show shortcuts
+      if (e.key === "?") {
+        setShowShortcuts(true);
+      }
+      // Escape to close
+      if (e.key === "Escape") {
+        setShowShortcuts(false);
+        if (isCreating) {
+          setIsCreating(false);
+          resetForm();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
   useEffect(() => {
     initSampleSnippets();
@@ -185,15 +234,73 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#313244] text-center">
+        <div className="p-4 border-t border-[#313244] space-y-2">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            className="flex items-center gap-2 text-xs text-[#6c7086] hover:text-white transition-colors w-full justify-center"
+          >
+            <Keyboard className="w-3 h-3" />
+            Shortcuts
+          </button>
           <a
             href="https://portfolio-adszapiro.vercel.app"
-            className="text-xs text-[#6c7086] hover:text-white transition-colors"
+            className="block text-xs text-[#6c7086] hover:text-white transition-colors text-center"
           >
             Back to Portfolio
           </a>
         </div>
       </aside>
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div 
+            className="bg-[#1e1e2e] border border-[#313244] rounded-xl p-6 max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white mb-4">Keyboard Shortcuts</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#cdd6f4]">New Snippet</span>
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">⌘</kbd>
+                  <span className="text-[#6c7086]">+</span>
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">N</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#cdd6f4]">Save Snippet</span>
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">⌘</kbd>
+                  <span className="text-[#6c7086]">+</span>
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">S</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#cdd6f4]">Copy Code</span>
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">⌘</kbd>
+                  <span className="text-[#6c7086]">+</span>
+                  <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">C</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#cdd6f4]">Cancel/Close</span>
+                <kbd className="px-2 py-1 bg-[#313244] text-[#6c7086] rounded text-xs">Esc</kbd>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowShortcuts(false)}
+              className="mt-6 w-full py-2 bg-[#cba6f7] hover:bg-[#b4befe] text-[#1e1e2e] rounded-lg text-sm transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col">

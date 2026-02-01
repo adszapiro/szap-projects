@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Send,
   Plus,
@@ -12,6 +12,8 @@ import {
   Check,
   Loader2,
   Globe,
+  Keyboard,
+  RotateCcw,
 } from "lucide-react";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -28,7 +30,7 @@ interface RequestHistory {
   url: string;
   status: number;
   time: number;
-  timestamp: Date;
+  timestamp: string;
 }
 
 export default function Home() {
@@ -46,6 +48,38 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<RequestHistory[]>([]);
   const [activeTab, setActiveTab] = useState<"headers" | "body">("headers");
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Load history from localStorage (Nielsen #6: Recognition over Recall)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("api-tester-history");
+      if (saved) {
+        setHistory(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Failed to load history", e);
+    }
+  }, []);
+
+  // Save history to localStorage
+  const saveHistory = useCallback((newHistory: RequestHistory[]) => {
+    try {
+      localStorage.setItem("api-tester-history", JSON.stringify(newHistory));
+    } catch (e) {
+      console.error("Failed to save history", e);
+    }
+  }, []);
+
+  // Clear history (Nielsen #3: User Control and Freedom)
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    try {
+      localStorage.removeItem("api-tester-history");
+    } catch (e) {
+      console.error("Failed to clear history", e);
+    }
+  }, []);
 
   const methodColors: Record<HttpMethod, string> = {
     GET: "bg-green-600",
@@ -54,6 +88,27 @@ export default function Home() {
     PATCH: "bg-purple-600",
     DELETE: "bg-red-600",
   };
+
+  // Keyboard shortcuts (Nielsen #7: Flexibility and Efficiency)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + Enter to send request
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        sendRequest();
+      }
+      // ? to show shortcuts
+      if (e.key === "?" && !e.target) {
+        setShowShortcuts(true);
+      }
+      // Escape to close shortcuts
+      if (e.key === "Escape") {
+        setShowShortcuts(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
   const sendRequest = async () => {
     if (!url.trim()) {
@@ -98,18 +153,18 @@ export default function Home() {
       setResponseTime(time);
       setResponse(JSON.stringify(data.data, null, 2));
 
-      // Add to history
-      setHistory((prev) => [
-        {
-          id: crypto.randomUUID(),
-          method,
-          url,
-          status: data.status,
-          time,
-          timestamp: new Date(),
-        },
-        ...prev.slice(0, 9),
-      ]);
+      // Add to history and persist
+      const newHistoryItem: RequestHistory = {
+        id: crypto.randomUUID(),
+        method,
+        url,
+        status: data.status,
+        time,
+        timestamp: new Date().toISOString(),
+      };
+      const newHistory = [newHistoryItem, ...history.slice(0, 9)];
+      setHistory(newHistory);
+      saveHistory(newHistory);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
       setResponseStatus(null);
@@ -158,10 +213,21 @@ export default function Home() {
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
-          <h2 className="text-xs font-semibold text-[#6c7086] uppercase mb-3 flex items-center gap-2">
-            <Clock className="w-3 h-3" />
-            Recent Requests
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-[#6c7086] uppercase flex items-center gap-2">
+              <Clock className="w-3 h-3" />
+              Recent Requests
+            </h2>
+            {history.length > 0 && (
+              <button
+                onClick={clearHistory}
+                className="text-xs text-[#6c7086] hover:text-red-400 transition-colors"
+                aria-label="Clear history"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            )}
+          </div>
           {history.length === 0 ? (
             <p className="text-sm text-[#6c7086]">No requests yet</p>
           ) : (
@@ -188,15 +254,57 @@ export default function Home() {
           )}
         </div>
 
-        <div className="p-4 border-t border-[#16213e]">
+        <div className="p-4 border-t border-[#16213e] space-y-2">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            className="flex items-center gap-2 text-xs text-[#6c7086] hover:text-white transition-colors"
+          >
+            <Keyboard className="w-3 h-3" />
+            Shortcuts
+          </button>
           <a
             href="https://portfolio-adszapiro.vercel.app"
-            className="text-xs text-[#6c7086] hover:text-white transition-colors"
+            className="block text-xs text-[#6c7086] hover:text-white transition-colors"
           >
             Back to Portfolio
           </a>
         </div>
       </aside>
+
+      {/* Keyboard Shortcuts Modal (Nielsen #7 + #10) */}
+      {showShortcuts && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div 
+            className="bg-[#1a1a2e] border border-[#16213e] rounded-xl p-6 max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white mb-4">Keyboard Shortcuts</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#8b8fa3]">Send Request</span>
+                <div className="flex items-center gap-1">
+                  <kbd className="px-2 py-1 bg-[#16213e] text-[#6c7086] rounded text-xs">⌘</kbd>
+                  <span className="text-[#6c7086]">+</span>
+                  <kbd className="px-2 py-1 bg-[#16213e] text-[#6c7086] rounded text-xs">Enter</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#8b8fa3]">Close Modal</span>
+                <kbd className="px-2 py-1 bg-[#16213e] text-[#6c7086] rounded text-xs">Esc</kbd>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowShortcuts(false)}
+              className="mt-6 w-full py-2 bg-[#e94560] hover:bg-[#d63850] text-white rounded-lg text-sm transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col">

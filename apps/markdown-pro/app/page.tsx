@@ -69,6 +69,38 @@ export default function Home() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
   const [showDocs, setShowDocs] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Keyboard shortcuts (Nielsen #7: Flexibility and Efficiency)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+S to save/create new doc
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (!currentDocId) {
+          createNewDocument();
+        }
+      }
+      // Cmd+N for new document
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        createNewDocument();
+      }
+      // ? to show shortcuts (when not in textarea)
+      if (e.key === "?" && !(e.target instanceof HTMLTextAreaElement)) {
+        setShowShortcuts(true);
+      }
+      // Escape to close
+      if (e.key === "Escape") {
+        setShowShortcuts(false);
+        setShowDocs(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
 
   // Load documents from localStorage
   useEffect(() => {
@@ -83,9 +115,10 @@ export default function Home() {
     }
   }, []);
 
-  // Autosave current document
+  // Autosave current document with indicator (Nielsen #1: Visibility of System Status)
   useEffect(() => {
     if (currentDocId) {
+      setIsSaving(true);
       const timer = setTimeout(() => {
         setDocuments((prev) => {
           const updated = prev.map((doc) =>
@@ -96,6 +129,8 @@ export default function Home() {
           localStorage.setItem("markdown-pro-docs", JSON.stringify(updated));
           return updated;
         });
+        setIsSaving(false);
+        setLastSaved(new Date());
       }, 500);
       return () => clearTimeout(timer);
     }
@@ -342,13 +377,72 @@ ${marked(markdown)}
 
       {/* Footer */}
       <footer className={`border-t ${borderColor} px-4 py-2 text-xs opacity-50 flex items-center justify-between`}>
-        <span>
-          {markdown.length} characters | {markdown.split(/\s+/).filter(Boolean).length} words
-        </span>
-        <a href="https://portfolio-adszapiro.vercel.app" className="hover:text-blue-500">
-          Built by Alex Szapiro
-        </a>
+        <div className="flex items-center gap-4">
+          <span>
+            {markdown.length} characters | {markdown.split(/\s+/).filter(Boolean).length} words
+          </span>
+          {/* Autosave indicator (Nielsen #1: Visibility of System Status) */}
+          {currentDocId && (
+            <span className={isSaving ? "text-yellow-500" : "text-green-500"}>
+              {isSaving ? "Saving..." : lastSaved ? `Saved ${lastSaved.toLocaleTimeString()}` : "Saved"}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            className="hover:text-blue-500"
+          >
+            Shortcuts
+          </button>
+          <a href="https://portfolio-adszapiro.vercel.app" className="hover:text-blue-500">
+            Built by Alex Szapiro
+          </a>
+        </div>
       </footer>
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div 
+            className={`${isDark ? "bg-[#1e1e1e] border-[#333]" : "bg-white border-gray-200"} border rounded-xl p-6 max-w-sm w-full mx-4`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold mb-4">Keyboard Shortcuts</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">New Document</span>
+                <div className="flex items-center gap-1">
+                  <kbd className={`px-2 py-1 ${isDark ? "bg-[#333]" : "bg-gray-100"} rounded text-xs`}>⌘</kbd>
+                  <span className="opacity-50">+</span>
+                  <kbd className={`px-2 py-1 ${isDark ? "bg-[#333]" : "bg-gray-100"} rounded text-xs`}>N</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Save Document</span>
+                <div className="flex items-center gap-1">
+                  <kbd className={`px-2 py-1 ${isDark ? "bg-[#333]" : "bg-gray-100"} rounded text-xs`}>⌘</kbd>
+                  <span className="opacity-50">+</span>
+                  <kbd className={`px-2 py-1 ${isDark ? "bg-[#333]" : "bg-gray-100"} rounded text-xs`}>S</kbd>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Close Panels</span>
+                <kbd className={`px-2 py-1 ${isDark ? "bg-[#333]" : "bg-gray-100"} rounded text-xs`}>Esc</kbd>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowShortcuts(false)}
+              className="mt-6 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
