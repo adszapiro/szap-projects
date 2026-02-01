@@ -29,7 +29,7 @@ export function ema(prices: number[], period: number): (number | null)[] {
   const multiplier = 2 / (period + 1);
   
   // Start with SMA for first value
-  let previousEma: number | null = null;
+  let previousEma = 0;
   
   for (let i = 0; i < prices.length; i++) {
     if (i < period - 1) {
@@ -42,9 +42,9 @@ export function ema(prices: number[], period: number): (number | null)[] {
       result.push(previousEma);
     } else {
       // EMA = (Close - Previous EMA) * multiplier + Previous EMA
-      const currentEma = (prices[i] - previousEma!) * multiplier + previousEma!;
-      result.push(currentEma);
-      previousEma = currentEma;
+      const newEma: number = (prices[i] - previousEma) * multiplier + previousEma;
+      result.push(newEma);
+      previousEma = newEma;
     }
   }
   
