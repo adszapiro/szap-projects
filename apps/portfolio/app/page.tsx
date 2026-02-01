@@ -11,6 +11,7 @@ import SkillBadge from "@/components/SkillBadge";
 import ProjectCard from "@/components/ProjectCard";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
+import { getFeaturedProjects } from "@/data/projects";
 
 export default function Home() {
   // ============================================
@@ -30,42 +31,14 @@ export default function Home() {
 
   // Finance & business skills
   const businessSkills = [
-    "Financial Modeling",
     "Excel",
-    "Bloomberg Terminal",
     "FactSet",
-    "Equity Research",
-    "ESG Analysis",
+    "Data Analysis",
     "Spanish (Proficient)"
   ];
 
-  // Projects array - live links to deployed apps!
-  const projects = [
-    {
-      title: "Portfolio Website",
-      description: "My personal portfolio built with Next.js and Tailwind CSS. A showcase of my journey into software development.",
-      tech: "Next.js, React, Tailwind CSS, TypeScript",
-      link: "https://portfolio-adszapiro.vercel.app"
-    },
-    {
-      title: "Todo App",
-      description: "A task management app with categories, priorities, and local storage persistence. Add tasks, mark complete, filter by status.",
-      tech: "React, TypeScript, Local Storage",
-      link: "https://alexszapiro-to-do.vercel.app"
-    },
-    {
-      title: "Expense Tracker",
-      description: "Track spending by category with visual charts and budget goals. Coming soon!",
-      tech: "Next.js, React, Chart.js",
-      link: null // Will add when built
-    },
-    {
-      title: "Investment Tracker",
-      description: "Monitor portfolio performance, track holdings, and analyze returns. Coming soon!",
-      tech: "Next.js, React, Finance APIs",
-      link: null // Will add when built
-    }
-  ];
+  // Get featured projects from centralized data file
+  const projects = getFeaturedProjects();
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
@@ -117,7 +90,7 @@ export default function Home() {
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">
             Featured Projects
           </h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {projects.map((project) => (
               <ProjectCard
                 key={project.title}
@@ -125,6 +98,8 @@ export default function Home() {
                 description={project.description}
                 tech={project.tech}
                 link={project.link}
+                status={project.status}
+                icon={project.icon}
               />
             ))}
           </div>
