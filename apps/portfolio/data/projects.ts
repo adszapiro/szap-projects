@@ -27,6 +27,16 @@ export const projects: Project[] = [
     icon: "📄"
   },
   {
+    title: "WalletScope",
+    description: "On-chain crypto wallet analyzer. Enter any Ethereum address to see holdings, risk score, and diversification metrics.",
+    tech: "Next.js, TypeScript, Ethereum RPC, CoinGecko API",
+    link: "https://szap-wallet-scope.vercel.app",
+    status: "live",
+    featured: true,
+    repo: "https://github.com/adszapiro/szap-projects",
+    icon: "🔍"
+  },
+  {
     title: "Algo Trading Backtester",
     description: "A professional-grade backtesting platform with TradingView-style charts, custom strategy editor, and multi-asset support.",
     tech: "Next.js, TypeScript, Lightweight Charts, Monaco Editor",
