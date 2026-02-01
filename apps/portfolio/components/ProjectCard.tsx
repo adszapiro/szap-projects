@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
+import { useCallback } from "react";
 
 interface ProjectCardProps {
   title: string;
@@ -13,6 +14,14 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ title, description, tech, link, status = "live", icon }: ProjectCardProps) {
   const isLive = status === "live" && link;
+
+  // Keyboard navigation support (Nielsen #7: Flexibility and Efficiency)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (link && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      window.open(link, "_blank", "noopener,noreferrer");
+    }
+  }, [link]);
   
   // Status badge
   const StatusBadge = () => {
@@ -92,14 +101,25 @@ export default function ProjectCard({ title, description, tech, link, status = "
 
   if (link) {
     return (
-      <a href={link} target="_blank" rel="noopener noreferrer" className="group block h-full">
+      <a 
+        href={link} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="group block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 rounded-xl"
+        aria-label={`View ${title} project - ${status === "live" ? "Live" : status}`}
+        onKeyDown={handleKeyDown}
+      >
         {cardContent}
       </a>
     );
   }
 
   return (
-    <div className="group h-full">
+    <div 
+      className="group h-full"
+      role="article"
+      aria-label={`${title} - ${status === "live" ? "Live" : status}`}
+    >
       {cardContent}
     </div>
   );

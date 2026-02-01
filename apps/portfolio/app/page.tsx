@@ -37,11 +37,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* Skip to main content link for accessibility (Nielsen #7) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-purple-600 focus:text-white focus:rounded-lg"
+      >
+        Skip to main content
+      </a>
+      
       {/* Header - Fixed navigation at top */}
       <Header />
 
       {/* Main content area */}
-      <main className="max-w-5xl mx-auto px-6">
+      <main id="main-content" className="max-w-5xl mx-auto px-6" role="main" aria-label="Portfolio content">
         
         {/* Hero Section - With 3D background */}
         <Hero />
@@ -120,8 +128,9 @@ export default function Home() {
         </section>
 
         {/* Projects Section */}
-        <section id="projects" className="mb-20 scroll-mt-20">
+        <section id="projects" className="mb-20 scroll-mt-20" aria-labelledby="projects-heading">
           <motion.h2 
+            id="projects-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -129,18 +138,24 @@ export default function Home() {
           >
             Featured Projects
           </motion.h2>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div 
+            className="grid gap-6 md:grid-cols-2"
+            role="list"
+            aria-label="Project cards"
+          >
             {projects.map((project, i) => (
-              <AnimatedCard key={project.title} delay={i * 0.1}>
-                <ProjectCard
-                  title={project.title}
-                  description={project.description}
-                  tech={project.tech}
-                  link={project.link}
-                  status={project.status}
-                  icon={project.icon}
-                />
-              </AnimatedCard>
+              <div key={project.title} role="listitem">
+                <AnimatedCard delay={i * 0.1}>
+                  <ProjectCard
+                    title={project.title}
+                    description={project.description}
+                    tech={project.tech}
+                    link={project.link}
+                    status={project.status}
+                    icon={project.icon}
+                  />
+                </AnimatedCard>
+              </div>
             ))}
           </div>
         </section>
