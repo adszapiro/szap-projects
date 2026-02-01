@@ -22,14 +22,19 @@ export interface AssetResult {
   result: BacktestResult;
 }
 
+const DEFAULT_WATCHLIST: Asset[] = [
+  { symbol: "SPY", name: "S&P 500 ETF", type: "stock" },
+  { symbol: "QQQ", name: "Nasdaq 100 ETF", type: "stock" },
+  { symbol: "bitcoin", name: "Bitcoin", type: "crypto" },
+];
+
+const WATCHLIST_STORAGE_KEY = "backtester-watchlist";
+
 export default function BacktesterPage() {
-  // Assets state
-  const [watchlist, setWatchlist] = useState<Asset[]>([
-    { symbol: "SPY", name: "S&P 500 ETF", type: "stock" },
-    { symbol: "QQQ", name: "Nasdaq 100 ETF", type: "stock" },
-    { symbol: "bitcoin", name: "Bitcoin", type: "crypto" },
-  ]);
-  const [selectedAsset, setSelectedAsset] = useState<Asset>(watchlist[0]);
+  // Assets state - initialize with defaults, will load from localStorage in useEffect
+  const [watchlist, setWatchlist] = useState<Asset[]>(DEFAULT_WATCHLIST);
+  const [selectedAsset, setSelectedAsset] = useState<Asset>(DEFAULT_WATCHLIST[0]);
+  const [isHydrated, setIsHydrated] = useState(false);
   
   // Data state
   const [priceData, setPriceData] = useState<OHLCV[]>([]);
@@ -98,6 +103,34 @@ function strategy(data, indicators, context) {
       setDataLoading(false);
     }
   }, [selectedAsset, startDate, endDate]);
+
+  // Load watchlist from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Asset[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setWatchlist(parsed);
+          setSelectedAsset(parsed[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load watchlist from localStorage:", err);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save watchlist to localStorage when it changes
+  useEffect(() => {
+    if (isHydrated) {
+      try {
+        localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
+      } catch (err) {
+        console.error("Failed to save watchlist to localStorage:", err);
+      }
+    }
+  }, [watchlist, isHydrated]);
 
   useEffect(() => {
     loadData();

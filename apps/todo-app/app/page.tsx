@@ -125,26 +125,42 @@ export default function TodoApp() {
   const activeTodoCount = todos.filter((todo) => !todo.completed).length;
   const emailTodoCount = todos.filter((todo) => todo.source === "email" && !todo.completed).length;
 
+  // Safe date parsing that handles both YYYY-MM-DD and ISO formats
+  const parseDate = (dateString: string): Date => {
+    // If it's an ISO timestamp (contains 'T'), extract just the date part
+    if (dateString.includes('T')) {
+      dateString = dateString.split('T')[0];
+    }
+    // Parse YYYY-MM-DD as local date (not UTC)
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null;
-    const date = new Date(dateString + 'T00:00:00');
+    const date = parseDate(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    if (date.getTime() === today.getTime()) return "Today";
-    if (date.getTime() === tomorrow.getTime()) return "Tomorrow";
+    // Compare year, month, day to avoid time issues
+    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    if (dateOnly.getTime() === today.getTime()) return "Today";
+    if (dateOnly.getTime() === tomorrow.getTime()) return "Tomorrow";
     
     return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   };
 
   const isOverdue = (dateString: string | null) => {
     if (!dateString) return false;
-    const date = new Date(dateString + 'T00:00:00');
+    const date = parseDate(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return date < today;
+    // Compare year, month, day only
+    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return dateOnly < today;
   };
 
   return (
