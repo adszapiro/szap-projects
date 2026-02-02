@@ -1,7 +1,7 @@
 "use client";
 
 import { BacktestResult } from "@/lib/types";
-import { TrendingUp, TrendingDown, Target, BarChart3, Clock, AlertCircle, Loader2, GitCompare } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, BarChart3, Clock, AlertCircle, Loader2, GitCompare, Download } from "lucide-react";
 
 interface ResultsPanelProps {
   result: BacktestResult | null;
@@ -12,6 +12,29 @@ interface ResultsPanelProps {
 }
 
 export default function ResultsPanel({ result, error, loading, showCompareButton, onCompare }: ResultsPanelProps) {
+  const handleExportJSON = () => {
+    if (!result) return;
+
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      metrics: result.metrics,
+      trades: result.trades,
+      equityCurve: result.equityCurve,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `backtest-results-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="panel h-full flex items-center justify-center">
@@ -71,15 +94,25 @@ export default function ResultsPanel({ result, error, loading, showCompareButton
             Results
           </span>
         </div>
-        {showCompareButton && onCompare && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={onCompare}
+            onClick={handleExportJSON}
             className="btn btn-secondary text-xs py-1 px-2"
+            title="Export results as JSON"
           >
-            <GitCompare className="w-3 h-3" />
-            Compare
+            <Download className="w-3 h-3" />
+            Export
           </button>
-        )}
+          {showCompareButton && onCompare && (
+            <button
+              onClick={onCompare}
+              className="btn btn-secondary text-xs py-1 px-2"
+            >
+              <GitCompare className="w-3 h-3" />
+              Compare
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Metrics Grid */}

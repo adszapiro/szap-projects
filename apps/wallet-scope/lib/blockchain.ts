@@ -1,5 +1,34 @@
 // Blockchain data fetching using free public APIs
 // No API key needed for basic functionality
+//
+// ============================================================================
+// IMPORTANT: DATA SOURCES
+// ============================================================================
+// - ETH Balance: REAL data via public RPC (eth.llamarpc.com)
+// - ETH Price: REAL data via CoinGecko API
+// - Token Holdings: SIMULATED (demo data based on address hash)
+// - Transactions: SIMULATED (demo data based on address hash)
+//
+// To enable REAL token data, integrate one of these APIs:
+// - Alchemy: https://docs.alchemy.com/reference/alchemy-gettokenbalances
+// - Moralis: https://docs.moralis.io/web3-data-api/evm/reference/get-wallet-token-balances
+// - Infura: https://docs.infura.io/api/networks/ethereum
+//
+// Example Alchemy integration:
+// const response = await fetch(
+//   `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+//   {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({
+//       jsonrpc: '2.0',
+//       method: 'alchemy_getTokenBalances',
+//       params: [address],
+//       id: 1
+//     })
+//   }
+// );
+// ============================================================================
 
 export interface TokenBalance {
   symbol: string;

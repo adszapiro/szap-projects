@@ -17,7 +17,10 @@ import {
   Clock,
   X,
   HelpCircle,
-  RotateCcw
+  RotateCcw,
+  Copy,
+  Check,
+  FlaskConical
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
@@ -66,6 +69,18 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [showRiskTooltip, setShowRiskTooltip] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Copy address to clipboard
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  }, []);
 
   // Demo wallet address (Vitalik's public wallet)
   const DEMO_WALLET = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
@@ -337,9 +352,99 @@ export default function Home() {
           </div>
         )}
 
+        {/* Loading Skeleton */}
+        {isLoading && (
+          <div className="space-y-8 animate-pulse">
+            {/* Skeleton Demo Banner */}
+            <div className="h-12 bg-gray-800/50 rounded-xl"></div>
+            
+            {/* Skeleton Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                  <div className="h-4 w-24 bg-gray-700 rounded mb-3"></div>
+                  <div className="h-8 w-32 bg-gray-700 rounded"></div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Skeleton Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                <div className="h-6 w-48 bg-gray-700 rounded mb-4"></div>
+                <div className="h-64 bg-gray-800/50 rounded-xl flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-600" />
+                </div>
+              </div>
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                <div className="h-6 w-32 bg-gray-700 rounded mb-4"></div>
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="h-20 bg-gray-800/50 rounded-lg"></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Skeleton Holdings Table */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+              <div className="h-6 w-32 bg-gray-700 rounded mb-6"></div>
+              <div className="space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between py-4 border-b border-gray-800/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-700"></div>
+                      <div>
+                        <div className="h-4 w-24 bg-gray-700 rounded mb-1"></div>
+                        <div className="h-3 w-12 bg-gray-800 rounded"></div>
+                      </div>
+                    </div>
+                    <div className="h-4 w-20 bg-gray-700 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Results */}
         {result && (
           <div className="space-y-8">
+            {/* Demo Data Banner */}
+            <div className="bg-amber-900/20 border border-amber-700/50 rounded-xl p-4 flex items-center gap-3">
+              <FlaskConical className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-amber-200 text-sm font-medium">Demo Data</p>
+                <p className="text-amber-200/70 text-xs">
+                  ETH balance is real. Token holdings and transactions are simulated for demonstration purposes.
+                </p>
+              </div>
+              <span className="px-2 py-1 bg-amber-800/50 text-amber-300 text-xs font-medium rounded">
+                Demo Mode
+              </span>
+            </div>
+
+            {/* Wallet Address with Copy Button */}
+            <div className="flex items-center justify-center gap-2 text-gray-400">
+              <span className="font-mono text-sm">
+                {result.address.slice(0, 10)}...{result.address.slice(-8)}
+              </span>
+              <button
+                onClick={() => copyToClipboard(result.address)}
+                className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors group"
+                title="Copy full address"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-gray-500 group-hover:text-gray-300" />
+                )}
+              </button>
+              {copied && (
+                <span className="text-xs text-green-400">Copied!</span>
+              )}
+            </div>
+
             {/* Overview Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Total Value */}
