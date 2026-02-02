@@ -84,16 +84,27 @@ export default function ProjectAccordion({ project }: ProjectAccordionProps) {
             ))}
           </div>
         ) : project.link ? (
-          <a
-            href={project.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View ${project.title} project (opens in new tab)`}
-            className="inline-flex items-center gap-2 text-sm text-[var(--accent)] hover:underline"
-          >
-            View Project
-            <ExternalLink className="w-3 h-3" aria-hidden="true" />
-          </a>
+          project.link.startsWith("/") ? (
+            // Internal link - use Link component, no external icon
+            <a
+              href={project.link}
+              aria-label={`View ${project.title} dashboard`}
+              className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent)]/80 transition-colors"
+            >
+              View Live Dashboard
+            </a>
+          ) : (
+            <a
+              href={project.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View ${project.title} project (opens in new tab)`}
+              className="inline-flex items-center gap-2 text-sm text-[var(--accent)] hover:underline"
+            >
+              View Project
+              <ExternalLink className="w-3 h-3" aria-hidden="true" />
+            </a>
+          )
         ) : null}
       </div>
     </div>

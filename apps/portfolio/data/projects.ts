@@ -34,14 +34,10 @@ export const projects: Project[] = [
     title: "AI Quant Agent",
     description: "Dual-model AI trading agent using GPT-4 and Claude in a debate system for strategy generation. Executes paper trades via Alpaca with risk management (5% daily loss limit) and Supabase logging.",
     tech: "Node.js, TypeScript, OpenAI, Anthropic, Supabase",
-    link: null, // Uses links array instead
-    links: [
-      { label: "Live Dashboard", url: "/quant-dashboard" },
-      { label: "GitHub", url: "https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent" },
-    ],
+    link: "/quant-dashboard",
     status: "live",
     tier: "featured",
-    repo: "https://github.com/adszapiro/szap-projects",
+    repo: "https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent",
   },
   {
     title: "ResumeAI",
