@@ -93,7 +93,8 @@ export function getClientIp(request: Request): string {
   // Check common headers for real IP (behind proxy/CDN)
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
+    const firstIp = forwardedFor.split(",")[0];
+    if (firstIp) return firstIp.trim();
   }
 
   const realIp = request.headers.get("x-real-ip");
@@ -104,7 +105,8 @@ export function getClientIp(request: Request): string {
   // Vercel-specific header
   const vercelForwardedFor = request.headers.get("x-vercel-forwarded-for");
   if (vercelForwardedFor) {
-    return vercelForwardedFor.split(",")[0].trim();
+    const firstIp = vercelForwardedFor.split(",")[0];
+    if (firstIp) return firstIp.trim();
   }
 
   return "anonymous";

@@ -17,43 +17,19 @@ import { useEffect } from "react";
  */
 
 // Simple page view tracking using Vercel Web Analytics
+// Note: Core Web Vitals are automatically tracked by @vercel/analytics
 export function Analytics() {
   useEffect(() => {
     // Track page views
     if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-      // Report to Vercel Analytics if available
-      const reportWebVitals = async () => {
-        try {
-          // Dynamic import to avoid issues in development
-          const { getCLS, getFID, getFCP, getLCP, getTTFB } = await import("web-vitals");
-          
-          getCLS(sendToAnalytics);
-          getFID(sendToAnalytics);
-          getFCP(sendToAnalytics);
-          getLCP(sendToAnalytics);
-          getTTFB(sendToAnalytics);
-        } catch (e) {
-          // web-vitals not installed, skip
-        }
-      };
-      
-      reportWebVitals();
+      // Core Web Vitals are automatically tracked by Vercel Analytics
+      // No manual setup needed when using @vercel/analytics package
+      console.log("[Analytics] Page view tracked");
     }
   }, []);
 
   // This component renders nothing - it just sets up tracking
   return null;
-}
-
-// Send metrics to analytics endpoint
-function sendToAnalytics(metric: { name: string; value: number; id: string }) {
-  // Log in development
-  if (process.env.NODE_ENV === "development") {
-    console.log("[Analytics]", metric.name, metric.value);
-  }
-  
-  // In production, metrics are automatically sent to Vercel Analytics
-  // if using @vercel/analytics package
 }
 
 /**
