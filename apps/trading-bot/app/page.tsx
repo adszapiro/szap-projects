@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, Bot, Settings, BarChart3 } from "lucide-react";
+import { RefreshCw, Bot, Settings, BarChart3, ArrowLeft } from "lucide-react";
 import AccountCard from "@/components/Dashboard/AccountCard";
 import PositionsTable from "@/components/Dashboard/PositionsTable";
 import OrdersTable from "@/components/Dashboard/OrdersTable";
@@ -47,6 +47,97 @@ interface Order {
   createdAt: string;
 }
 
+// Demo data for when API is not configured
+const DEMO_ACCOUNT: AccountData = {
+  portfolioValue: 102547.83,
+  cash: 45123.45,
+  equity: 102547.83,
+  buyingPower: 90246.90,
+  dailyPnl: 1234.56,
+  dailyPnlPercent: 1.22,
+};
+
+const DEMO_MARKET: MarketData = {
+  isOpen: true,
+  nextOpen: new Date().toISOString(),
+  nextClose: new Date().toISOString(),
+};
+
+const DEMO_POSITIONS: Position[] = [
+  {
+    symbol: "AAPL",
+    qty: 50,
+    side: "long",
+    avgEntryPrice: 178.25,
+    currentPrice: 185.42,
+    marketValue: 9271.00,
+    unrealizedPl: 358.50,
+    unrealizedPlPercent: 4.02,
+    changeToday: 1.25,
+  },
+  {
+    symbol: "MSFT",
+    qty: 30,
+    side: "long",
+    avgEntryPrice: 378.50,
+    currentPrice: 392.18,
+    marketValue: 11765.40,
+    unrealizedPl: 410.40,
+    unrealizedPlPercent: 3.61,
+    changeToday: 0.85,
+  },
+  {
+    symbol: "NVDA",
+    qty: 15,
+    side: "long",
+    avgEntryPrice: 485.00,
+    currentPrice: 512.75,
+    marketValue: 7691.25,
+    unrealizedPl: 416.25,
+    unrealizedPlPercent: 5.72,
+    changeToday: 2.15,
+  },
+];
+
+const DEMO_ORDERS: Order[] = [
+  {
+    id: "demo-1",
+    symbol: "TSLA",
+    qty: 10,
+    filledQty: 10,
+    side: "buy",
+    type: "market",
+    status: "filled",
+    limitPrice: null,
+    filledAvgPrice: 248.50,
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-2",
+    symbol: "AMD",
+    qty: 25,
+    filledQty: 0,
+    side: "buy",
+    type: "limit",
+    status: "pending",
+    limitPrice: 145.00,
+    filledAvgPrice: null,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "demo-3",
+    symbol: "GOOGL",
+    qty: 5,
+    filledQty: 5,
+    side: "sell",
+    type: "market",
+    status: "filled",
+    limitPrice: null,
+    filledAvgPrice: 142.30,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
 export default function TradingBotPage() {
   const [account, setAccount] = useState<AccountData | null>(null);
   const [market, setMarket] = useState<MarketData | null>(null);
@@ -68,6 +159,12 @@ export default function TradingBotPage() {
 
       if (accountData.configured === false) {
         setConfigured(false);
+        // Show demo data so users can see what the app looks like
+        setAccount(DEMO_ACCOUNT);
+        setMarket(DEMO_MARKET);
+        setPositions(DEMO_POSITIONS);
+        setOrders(DEMO_ORDERS);
+        setLastUpdate(new Date());
         setLoading(false);
         setRefreshing(false);
         return;
@@ -194,12 +291,32 @@ export default function TradingBotPage() {
             <button className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] rounded-lg transition-colors">
               <Settings className="w-5 h-5" />
             </button>
+            <a
+              href="https://alexszapiro.com"
+              className="flex items-center gap-2 px-3 py-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm">Portfolio</span>
+            </a>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-6">
+        {/* Demo Mode Banner */}
+        {configured === false && !loading && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <Bot className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-400">Demo Mode - Sample Data</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                You&apos;re viewing sample data to preview the trading dashboard. Configure your Alpaca API keys below to connect your paper trading account.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-12 gap-6">
           {/* Left Column - Account & Trading */}
           <div className="col-span-12 lg:col-span-4 space-y-6">

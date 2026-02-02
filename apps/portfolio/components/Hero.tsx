@@ -32,7 +32,7 @@ export default function Hero() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-lg text-[var(--text-muted)] mb-10"
         >
-          School of Information @ University of Michigan
+          Economics @ University of Michigan
         </motion.p>
 
         <motion.div 

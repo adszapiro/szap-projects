@@ -13,6 +13,7 @@ import {
   Play,
   Pause,
   AlertTriangle,
+  ArrowLeft,
 } from "lucide-react";
 
 interface AgentStatus {
@@ -221,6 +222,13 @@ export default function AgentDashboardPage() {
               className="px-4 py-2 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
             >
               Back to Trading
+            </a>
+            <a
+              href="https://alexszapiro.com"
+              className="flex items-center gap-2 px-4 py-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Portfolio
             </a>
           </div>
         </div>

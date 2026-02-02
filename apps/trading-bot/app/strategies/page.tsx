@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Play, Pause, Settings, Trash2, Plus, Code, AlertTriangle } from "lucide-react";
+import { Play, Pause, Settings, Trash2, Plus, Code, AlertTriangle, ArrowLeft } from "lucide-react";
 import { Strategy, DEFAULT_STRATEGIES } from "@/lib/types";
 
 const STRATEGIES_STORAGE_KEY = "trading-bot-strategies";
@@ -120,6 +120,13 @@ function generateSignal(data, position) {
               className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
             >
               Back to Trading
+            </a>
+            <a
+              href="https://alexszapiro.com"
+              className="flex items-center gap-2 px-4 py-2 text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Portfolio
             </a>
           </div>
         </div>
