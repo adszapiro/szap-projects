@@ -347,37 +347,32 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const qty = maxPositionValue / currentPrice;
           
           if (qty > 0 && currentPrice > 0) {
-            await placeSimulatedOrder(symbol, "buy", qty, currentPrice, strategy.id, signal.reason);
-            tradeId = await saveTrade({
-              strategy_id: strategy.id,
+            const orderResult = await placeSimulatedOrder({
               symbol,
               side: "buy",
               qty,
-              price: currentPrice,
+              strategy_id: strategy.id,
               reasoning: `[Tournament] ${signal.reason}`,
-              asset_class: "crypto",
             });
+            tradeId = orderResult.tradeId;
             tradeExecuted = true;
             tradesExecuted++;
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
-          const currentPrice = data.close[data.close.length - 1];
-          await placeSimulatedOrder(symbol, "sell", positionData.qty, currentPrice, strategy.id, signal.reason);
-          
-          const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
-          tradeId = await saveTrade({
-            strategy_id: strategy.id,
+          const orderResult = await placeSimulatedOrder({
             symbol,
             side: "sell",
             qty: positionData.qty,
-            price: currentPrice,
+            strategy_id: strategy.id,
             reasoning: `[Tournament] ${signal.reason}`,
-            asset_class: "crypto",
           });
+          
+          tradeId = orderResult.tradeId;
           tradeExecuted = true;
           tradesExecuted++;
           
-          // Update bandit with result
+          // Update bandit with result (placeSimulatedOrder returns pnl for sells)
+          const pnl = orderResult.pnl || 0;
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
         }
