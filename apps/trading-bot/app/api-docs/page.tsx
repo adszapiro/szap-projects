@@ -147,8 +147,10 @@ export default function ApiDocsPage() {
                   )
                 )
                 .map(([path, methods]) =>
-                  Object.entries(methods as Record<Method, PathOperation>)
-                    .filter(([, op]) => op.tags?.includes(tag.name))
+                  Object.entries(methods as Partial<Record<Method, PathOperation>>)
+                    .filter((entry): entry is [string, PathOperation] => 
+                      entry[1] != null && entry[1].tags?.includes(tag.name) === true
+                    )
                     .map(([method, operation]) => (
                       <div
                         key={`${method}-${path}`}
