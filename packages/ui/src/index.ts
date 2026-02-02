@@ -12,6 +12,11 @@ export { EmptyState, NoResultsState, ErrorState } from "./empty-state";
 export {
   createApiError,
   createErrorResponse,
+  createApiErrorResponse,
+  createSuccessResponse,
+  jsonErrorResponse,
+  jsonSuccessResponse,
+  generateRequestId,
   parseError,
   logError,
   formatUserError,
@@ -20,6 +25,8 @@ export {
   ERROR_MESSAGES,
   type ApiError,
   type ErrorType,
+  type ApiSuccessResponse,
+  type ApiErrorResponse,
 } from "./error-utils";
 
 // Feedback (Norman: Feedback)
@@ -37,3 +44,29 @@ export { Card } from "./card";
 
 // Analytics & Monitoring
 export { Analytics, trackEvent, trackError } from "./analytics";
+
+// Rate Limiting (API Security Best Practice)
+export {
+  rateLimit,
+  getClientIp,
+  rateLimitResponse,
+  type RateLimitConfig,
+  type RateLimitResult,
+} from "./rate-limit";
+
+// Structured Logging (DevOps Best Practice)
+export {
+  logger,
+  createLogger,
+  createRequestLogger,
+  type LogLevel,
+  type LogContext,
+} from "./logger";
+
+// Fetch Utilities with Retry (Backend Reliability)
+export {
+  fetchWithRetry,
+  fetchJsonWithRetry,
+  createApiFetcher,
+  type RetryConfig,
+} from "./fetch-utils";

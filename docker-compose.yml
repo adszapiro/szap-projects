@@ -1,0 +1,50 @@
+# =============================================================================
+# Docker Compose for Local Development
+# =============================================================================
+#
+# Usage:
+#   docker-compose up quant-agent       # Start quant agent only
+#   docker-compose up -d                # Start all services in background
+#   docker-compose logs -f quant-agent  # Follow logs
+#   docker-compose down                 # Stop all services
+#
+# =============================================================================
+
+services:
+  # Autonomous Trading Agent
+  quant-agent:
+    build:
+      context: ./apps/quant-agent
+      dockerfile: Dockerfile
+    container_name: szap-quant-agent
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - AGENT_ENABLED=${AGENT_ENABLED:-false}
+      - AGENT_MAX_DAILY_LOSS_PERCENT=${AGENT_MAX_DAILY_LOSS_PERCENT:-5}
+      # API Keys (set in .env file or pass at runtime)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - ALPACA_PAPER=${ALPACA_PAPER:-true}
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    volumes:
+      # Mount logs directory (optional)
+      - quant-agent-logs:/app/logs
+    networks:
+      - szap-network
+    labels:
+      - "com.szap.service=quant-agent"
+      - "com.szap.description=Autonomous trading agent"
+
+networks:
+  szap-network:
+    driver: bridge
+
+volumes:
+  quant-agent-logs:
+    driver: local

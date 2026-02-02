@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+
+# Build output (we rebuild in Docker)
+dist
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+
+# Development files
+*.log
+.DS_Store
+coverage
+.nyc_output
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__
+
+# Documentation
+README.md
+docs/

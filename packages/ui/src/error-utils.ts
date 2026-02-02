@@ -138,3 +138,102 @@ export function formatUserError(error: ApiError): string {
   }
   return error.message;
 }
+
+/**
+ * Standard API response structure for success
+ */
+export interface ApiSuccessResponse<T> {
+  success: true;
+  data: T;
+  requestId?: string;
+}
+
+/**
+ * Standard API response structure for errors
+ */
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    type: ErrorType;
+    code: string;
+    message: string;
+    details?: string;
+    retryable: boolean;
+  };
+  requestId?: string;
+}
+
+/**
+ * Generate a unique request ID for tracing
+ */
+export function generateRequestId(): string {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * Create a standardized success response
+ */
+export function createSuccessResponse<T>(data: T, requestId?: string): ApiSuccessResponse<T> {
+  return {
+    success: true,
+    data,
+    requestId,
+  };
+}
+
+/**
+ * Create a standardized error response for API routes
+ */
+export function createApiErrorResponse(
+  type: ErrorType,
+  customMessage?: string,
+  details?: string,
+  requestId?: string
+): ApiErrorResponse {
+  const error = createApiError(type, customMessage, details);
+  return {
+    success: false,
+    error: {
+      type: error.type,
+      code: type,
+      message: error.message,
+      details: error.details,
+      retryable: error.retryable,
+    },
+    requestId,
+  };
+}
+
+/**
+ * Create a JSON Response object for Next.js API routes
+ */
+export function jsonErrorResponse(
+  type: ErrorType,
+  customMessage?: string,
+  details?: string
+): Response {
+  const requestId = generateRequestId();
+  const body = createApiErrorResponse(type, customMessage, details, requestId);
+  return new Response(JSON.stringify(body), {
+    status: ERROR_STATUS_CODES[type],
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": requestId,
+    },
+  });
+}
+
+/**
+ * Create a JSON Response object for successful responses
+ */
+export function jsonSuccessResponse<T>(data: T, status = 200): Response {
+  const requestId = generateRequestId();
+  const body = createSuccessResponse(data, requestId);
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Request-Id": requestId,
+    },
+  });
+}
