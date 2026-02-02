@@ -13,10 +13,10 @@ export default function Header() {
   }, []);
 
   const navLinks = [
-    { label: "About", href: "#about" },
-    { label: "Projects", href: "#projects" },
+    { label: "About", href: "/#about" },
+    { label: "Projects", href: "/#projects" },
     { label: "Resume", href: "/resume" },
-    { label: "Contact", href: "#contact" },
+    { label: "Contact", href: "/#contact" },
   ];
 
   const toggleTheme = () => {
@@ -28,7 +28,7 @@ export default function Header() {
       <nav className="max-w-4xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <a 
-            href="#home" 
+            href="/" 
             className="text-lg font-semibold text-[var(--text)] hover:text-[var(--text-secondary)] transition-colors"
           >
             AS
