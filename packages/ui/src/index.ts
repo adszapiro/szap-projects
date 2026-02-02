@@ -70,3 +70,14 @@ export {
   createApiFetcher,
   type RetryConfig,
 } from "./fetch-utils";
+
+// Security Utilities (CVE-2025-48370 Supabase protection)
+export {
+  isValidUUID,
+  sanitizeUUID,
+  validateUUIDs,
+  sanitizeInput,
+  isValidEmail,
+  sanitizeRedirectUrl,
+  getSecurityHeaders,
+} from "./security";

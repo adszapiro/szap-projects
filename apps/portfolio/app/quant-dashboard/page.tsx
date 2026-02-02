@@ -26,15 +26,16 @@ export default function QuantDashboard() {
   }>({ isRunning: false, lastActivity: null });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [activeTab, setActiveTab] = useState<"overview" | "trades" | "logs">("overview");
 
   const fetchData = useCallback(async () => {
     try {
       const [snapshotsData, tradesData, strategiesData, logsData, status] =
         await Promise.all([
           getDailySnapshots(30),
-          getRecentTrades(20),
+          getRecentTrades(50),
           getActiveStrategies(),
-          getRecentLogs(50),
+          getRecentLogs(100),
           getAgentStatus(),
         ]);
 
@@ -53,15 +54,17 @@ export default function QuantDashboard() {
 
   useEffect(() => {
     fetchData();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const latestSnapshot = snapshots[0];
-  const todaysTrades = trades.filter(
-    (t) => new Date(t.created_at).toDateString() === new Date().toDateString()
-  );
+  // Calculate stats from trades and logs
+  const portfolioValue = 50000; // Simulated starting capital
+  const totalTrades = trades.length;
+  const winningTrades = trades.filter(t => t.pnl && t.pnl > 0).length;
+  const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
+  const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const pnlPercent = (totalPnL / portfolioValue) * 100;
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
@@ -70,370 +73,338 @@ export default function QuantDashboard() {
       minimumFractionDigits: 2,
     }).format(value);
 
-  const formatPercent = (value: number) =>
-    `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
+      second: "2-digit",
     });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[var(--text-secondary)]">
-            Loading agent data...
-          </p>
+          <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 text-sm">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)]">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-            >
-              ← Back to Portfolio
-            </Link>
-            <h1 className="text-xl font-semibold">AI Quant Agent</h1>
-            <a
-              href="https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-[var(--bg-secondary)] hover:bg-[var(--accent)] hover:text-white border border-[var(--border)] rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-              </svg>
-              View Source Code
-            </a>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-3 h-3 rounded-full ${
-                  agentStatus.isRunning ? "bg-green-500 animate-pulse" : "bg-gray-500"
-                }`}
-              />
-              <span className="text-sm text-[var(--text-secondary)]">
-                {agentStatus.isRunning ? "Running" : "Offline"}
-              </span>
+    <div className="min-h-screen bg-white">
+      {/* Clean Header */}
+      <header className="border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <Link
+                href="/"
+                className="text-gray-400 hover:text-black transition-colors text-sm"
+              >
+                ← Portfolio
+              </Link>
+              <div>
+                <h1 className="text-2xl font-semibold text-black">AI Quant Agent</h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Autonomous trading with GPT-4 + Claude
+                </p>
+              </div>
             </div>
-            <button
-              onClick={fetchData}
-              className="text-sm text-blue-500 hover:text-blue-400 transition-colors"
-            >
-              Refresh
-            </button>
-            <span className="text-xs text-[var(--text-muted)]">
-              Last updated: {formatTime(lastRefresh.toISOString())}
-            </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    agentStatus.isRunning ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                  }`}
+                />
+                <span className="text-sm text-gray-600">
+                  {agentStatus.isRunning ? "Live" : "Offline"}
+                </span>
+              </div>
+              <a
+                href="https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-500 hover:text-black transition-colors"
+              >
+                Source Code →
+              </a>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats Overview */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Key Metrics */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10"
         >
-          <div className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)]">
-            <p className="text-sm text-[var(--text-secondary)] mb-1">
-              Portfolio Value
+          <div className="p-6 border border-gray-200 rounded-lg">
+            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Portfolio Value</p>
+            <p className="text-3xl font-light text-black">
+              {formatCurrency(portfolioValue + totalPnL)}
             </p>
-            <p className="text-2xl font-bold">
-              {latestSnapshot
-                ? formatCurrency(latestSnapshot.portfolio_value)
-                : "$--"}
+            <p className="text-xs text-gray-400 mt-1">Simulated Paper Trading</p>
+          </div>
+          <div className="p-6 border border-gray-200 rounded-lg">
+            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Total P&L</p>
+            <p className={`text-3xl font-light ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
+            </p>
+            <p className={`text-xs mt-1 ${pnlPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%
             </p>
           </div>
-          <div className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)]">
-            <p className="text-sm text-[var(--text-secondary)] mb-1">
-              Today&apos;s P&L
-            </p>
-            <p
-              className={`text-2xl font-bold ${
-                latestSnapshot && latestSnapshot.daily_pnl >= 0
-                  ? "text-green-500"
-                  : "text-red-500"
+          <div className="p-6 border border-gray-200 rounded-lg">
+            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Total Trades</p>
+            <p className="text-3xl font-light text-black">{totalTrades}</p>
+            <p className="text-xs text-gray-400 mt-1">{strategies.length} active strategies</p>
+          </div>
+          <div className="p-6 border border-gray-200 rounded-lg">
+            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Win Rate</p>
+            <p className="text-3xl font-light text-black">{winRate.toFixed(0)}%</p>
+            <p className="text-xs text-gray-400 mt-1">{winningTrades} / {totalTrades} trades</p>
+          </div>
+        </motion.div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          {(["overview", "trades", "logs"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab
+                  ? "border-black text-black"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              {latestSnapshot
-                ? formatPercent(latestSnapshot.daily_pnl_percent)
-                : "--"}
-            </p>
-          </div>
-          <div className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)]">
-            <p className="text-sm text-[var(--text-secondary)] mb-1">
-              Total P&L
-            </p>
-            <p
-              className={`text-2xl font-bold ${
-                latestSnapshot && latestSnapshot.total_pnl >= 0
-                  ? "text-green-500"
-                  : "text-red-500"
-              }`}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-2 py-2">
+            <button
+              onClick={fetchData}
+              className="text-xs text-gray-400 hover:text-black transition-colors"
             >
-              {latestSnapshot
-                ? formatPercent(latestSnapshot.total_pnl_percent)
-                : "--"}
-            </p>
+              Refresh
+            </button>
+            <span className="text-xs text-gray-300">|</span>
+            <span className="text-xs text-gray-400">
+              Updated {formatTime(lastRefresh.toISOString())}
+            </span>
           </div>
-          <div className="bg-[var(--card)] rounded-xl p-4 border border-[var(--border)]">
-            <p className="text-sm text-[var(--text-secondary)] mb-1">
-              Win Rate Today
-            </p>
-            <p className="text-2xl font-bold">
-              {latestSnapshot
-                ? `${(latestSnapshot.win_rate_today * 100).toFixed(0)}%`
-                : "--"}
-            </p>
-          </div>
-        </motion.section>
-
-        {/* Two Column Layout */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Active Strategies */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-blue-500 rounded-full" />
-              Active Strategies ({strategies.length})
-            </h2>
-            <div className="space-y-3">
-              {strategies.length === 0 ? (
-                <p className="text-[var(--text-secondary)] text-sm">
-                  No active strategies. The agent will generate new ones during
-                  the next cycle.
-                </p>
-              ) : (
-                strategies.map((strategy) => (
-                  <div
-                    key={strategy.id}
-                    className="bg-[var(--card)] rounded-lg p-4 border border-[var(--border)]"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-medium">{strategy.name}</h3>
-                        <p className="text-sm text-[var(--text-secondary)] mt-1">
-                          {strategy.description?.slice(0, 100)}...
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-1 text-xs rounded ${
-                          strategy.asset_class === "crypto"
-                            ? "bg-purple-500/20 text-purple-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        }`}
-                      >
-                        {strategy.asset_class}
-                      </span>
-                    </div>
-                    <div className="flex gap-2 mt-3 flex-wrap">
-                      {strategy.symbols?.map((symbol) => (
-                        <span
-                          key={symbol}
-                          className="px-2 py-0.5 text-xs bg-[var(--bg)] rounded"
-                        >
-                          {symbol}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.section>
-
-          {/* Recent Trades */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full" />
-              Recent Trades ({todaysTrades.length} today)
-            </h2>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {trades.length === 0 ? (
-                <p className="text-[var(--text-secondary)] text-sm">
-                  No trades yet. The agent will execute trades when conditions
-                  are met.
-                </p>
-              ) : (
-                trades.slice(0, 10).map((trade) => (
-                  <div
-                    key={trade.id}
-                    className="bg-[var(--card)] rounded-lg p-3 border border-[var(--border)] flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2 py-0.5 text-xs font-bold rounded ${
-                          trade.side === "buy"
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-red-500/20 text-red-400"
-                        }`}
-                      >
-                        {trade.side.toUpperCase()}
-                      </span>
-                      <div>
-                        <span className="font-medium">{trade.symbol}</span>
-                        <span className="text-sm text-[var(--text-secondary)] ml-2">
-                          {trade.qty} @ ${trade.price?.toFixed(2) || "--"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {trade.pnl !== null && (
-                        <span
-                          className={`text-sm font-medium ${
-                            trade.pnl >= 0 ? "text-green-500" : "text-red-500"
-                          }`}
-                        >
-                          {formatCurrency(trade.pnl)}
-                        </span>
-                      )}
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {formatDate(trade.created_at)}{" "}
-                        {formatTime(trade.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.section>
         </div>
 
-        {/* Agent Logs */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8"
+        {/* Tab Content */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
         >
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full" />
-            Agent Activity Log
-          </h2>
-          <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden">
-            <div className="max-h-[300px] overflow-y-auto font-mono text-sm">
-              {logs.length === 0 ? (
-                <p className="p-4 text-[var(--text-secondary)]">
-                  No activity logs yet. Start the agent to see real-time
-                  activity.
+          {activeTab === "overview" && (
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Active Strategies */}
+              <div>
+                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                  Active Strategies
+                </h2>
+                <div className="space-y-3">
+                  {strategies.length === 0 ? (
+                    <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
+                      No active strategies. Agent will generate them automatically.
+                    </p>
+                  ) : (
+                    strategies.map((strategy) => (
+                      <div
+                        key={strategy.id}
+                        className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-medium text-black">{strategy.name}</h3>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              strategy.asset_class === "crypto"
+                                ? "bg-purple-50 text-purple-600"
+                                : "bg-blue-50 text-blue-600"
+                            }`}
+                          >
+                            {strategy.asset_class}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-3 line-clamp-2">
+                          {strategy.description}
+                        </p>
+                        <div className="flex gap-1 flex-wrap">
+                          {strategy.symbols?.slice(0, 5).map((symbol) => (
+                            <span
+                              key={symbol}
+                              className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded"
+                            >
+                              {symbol}
+                            </span>
+                          ))}
+                          {strategy.symbols && strategy.symbols.length > 5 && (
+                            <span className="text-xs px-2 py-0.5 text-gray-400">
+                              +{strategy.symbols.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
+              <div>
+                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                  Recent Activity
+                </h2>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-[400px] overflow-auto">
+                  {logs.length === 0 ? (
+                    <p className="text-gray-400 text-sm py-8 text-center">
+                      No activity yet. Start the agent to see logs.
+                    </p>
+                  ) : (
+                    logs.slice(0, 20).map((log) => (
+                      <div key={log.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              log.level === "error"
+                                ? "bg-red-500"
+                                : log.level === "warning"
+                                ? "bg-yellow-500"
+                                : log.level === "decision"
+                                ? "bg-purple-500"
+                                : "bg-blue-500"
+                            }`}
+                          />
+                          <span className="text-sm text-black flex-1 truncate">
+                            {log.action}
+                          </span>
+                          <span className="text-xs text-gray-400 flex-shrink-0">
+                            {formatTime(log.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "trades" && (
+            <div>
+              <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                Trade History
+              </h2>
+              {trades.length === 0 ? (
+                <p className="text-gray-400 text-sm py-12 text-center border border-dashed border-gray-200 rounded-lg">
+                  No trades executed yet. The agent will trade when market conditions are met.
                 </p>
               ) : (
-                logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="px-4 py-2 border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg)] transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${
-                          log.level === "error"
-                            ? "bg-red-500/20 text-red-400"
-                            : log.level === "warning"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : log.level === "decision"
-                                ? "bg-purple-500/20 text-purple-400"
-                                : "bg-blue-500/20 text-blue-400"
-                        }`}
-                      >
-                        {log.level}
-                      </span>
-                      <span className="text-[var(--text-secondary)]">
-                        [{formatTime(log.created_at)}]
-                      </span>
-                      <span className="text-[var(--text)]">{log.action}</span>
-                    </div>
-                    {log.details && Object.keys(log.details).length > 0 && (
-                      <pre className="text-xs text-[var(--text-muted)] mt-1 ml-20 overflow-x-auto">
-                        {JSON.stringify(log.details, null, 2).slice(0, 200)}
-                      </pre>
-                    )}
-                  </div>
-                ))
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Side</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {trades.map((trade) => (
+                        <tr key={trade.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500">{formatTime(trade.created_at)}</td>
+                          <td className="px-4 py-3 font-medium text-black">{trade.symbol}</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                trade.side === "buy"
+                                  ? "bg-green-50 text-green-600"
+                                  : "bg-red-50 text-red-600"
+                              }`}
+                            >
+                              {trade.side.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">{trade.qty}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            ${trade.price?.toFixed(2) || "--"}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium ${
+                            trade.pnl && trade.pnl >= 0 ? "text-green-600" : "text-red-600"
+                          }`}>
+                            {trade.pnl ? formatCurrency(trade.pnl) : "--"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          </div>
-        </motion.section>
+          )}
 
-        {/* Performance Chart Placeholder */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-8"
-        >
-          <h2 className="text-lg font-semibold mb-4">Performance History</h2>
-          <div className="bg-[var(--card)] rounded-xl p-6 border border-[var(--border)]">
-            {snapshots.length === 0 ? (
-              <p className="text-center text-[var(--text-secondary)]">
-                Performance data will appear here once the agent starts
-                trading.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {snapshots.slice(0, 5).map((snapshot) => (
-                  <div key={snapshot.id} className="text-center">
-                    <p className="text-sm text-[var(--text-secondary)]">
-                      {formatDate(snapshot.date)}
-                    </p>
-                    <p
-                      className={`text-lg font-bold ${
-                        snapshot.daily_pnl >= 0
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {formatPercent(snapshot.daily_pnl_percent)}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {snapshot.trades_today} trades
-                    </p>
-                  </div>
-                ))}
+          {activeTab === "logs" && (
+            <div>
+              <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                Agent Logs
+              </h2>
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-900 text-gray-100 font-mono text-xs">
+                <div className="max-h-[500px] overflow-auto p-4 space-y-1">
+                  {logs.length === 0 ? (
+                    <p className="text-gray-500 py-8 text-center">No logs available</p>
+                  ) : (
+                    logs.map((log) => (
+                      <div key={log.id} className="flex gap-3 py-1 hover:bg-gray-800/50">
+                        <span className="text-gray-500 flex-shrink-0">
+                          {formatTime(log.created_at)}
+                        </span>
+                        <span
+                          className={`flex-shrink-0 w-16 ${
+                            log.level === "error"
+                              ? "text-red-400"
+                              : log.level === "warning"
+                              ? "text-yellow-400"
+                              : log.level === "decision"
+                              ? "text-purple-400"
+                              : "text-blue-400"
+                          }`}
+                        >
+                          [{log.level}]
+                        </span>
+                        <span className="text-gray-300">{log.action}</span>
+                        {log.details && Object.keys(log.details).length > 0 && (
+                          <span className="text-gray-600 truncate">
+                            {JSON.stringify(log.details)}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </motion.section>
+            </div>
+          )}
+        </motion.div>
 
-        {/* Footer Info */}
-        <footer className="mt-12 text-center text-sm text-[var(--text-muted)]">
-          <p>
-            Dual-model AI (GPT-4 + Claude) | Paper Trading via Alpaca | 24/7
-            Crypto + Market Hours Stocks
-          </p>
-          <p className="mt-1">
-            Data refreshes automatically every 30 seconds. Agent runs locally on
-            your machine.
+        {/* Footer */}
+        <footer className="mt-16 pt-8 border-t border-gray-200 text-center">
+          <p className="text-xs text-gray-400">
+            Paper trading simulation using real market data. Auto-refreshes every 15 seconds.
           </p>
         </footer>
       </main>
