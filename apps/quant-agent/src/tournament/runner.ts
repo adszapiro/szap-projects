@@ -137,6 +137,10 @@ export async function runStockTournament(): Promise<TournamentResult> {
   const account = await getAccount();
   const accountValue = account.portfolio_value;
   
+  // Track symbols already traded this cycle to prevent multiple sells/buys
+  const soldSymbols = new Set<string>();
+  const boughtSymbols = new Set<string>();
+  
   // Run each strategy
   for (const strategy of strategies) {
     const allocation = allocations.get(strategy.id) || 0.1;
@@ -186,7 +190,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
         let tradeExecuted = false;
         let tradeId: string | undefined;
         
-        if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData) {
+        if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData && !boughtSymbols.has(symbol)) {
           const currentPrice = data.close[data.close.length - 1];
           const qty = Math.floor(maxPositionValue / currentPrice);
           
@@ -204,6 +208,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
               tradeId = result.tradeId;
               tradeExecuted = true;
               tradesExecuted++;
+              boughtSymbols.add(symbol);  // Mark as bought this cycle
               console.log(`✅ [STOCK] BUY executed: ${symbol} orderId=${result.orderId}`);
               // Track BUY trade (P&L determined on SELL)
               await updateStrategyPerformance(strategy.id, null, 0);
@@ -213,7 +218,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
           } else {
             console.log(`⚠️ [STOCK] BUY skipped: qty=${qty}`);
           }
-        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData && positionData.qty > 0) {
+        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData && positionData.qty > 0 && !soldSymbols.has(symbol)) {
           const currentPrice = data.close[data.close.length - 1];
           console.log(`🔄 [STOCK] Attempting SELL: ${symbol} qty=${positionData.qty} @ $${currentPrice.toFixed(2)}`);
           try {
@@ -227,6 +232,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
             tradeId = result.tradeId;
             tradeExecuted = true;
             tradesExecuted++;
+            soldSymbols.add(symbol);  // Mark as sold this cycle
             console.log(`✅ [STOCK] SELL executed: ${symbol} orderId=${result.orderId}`);
             
             // Update bandit with result
