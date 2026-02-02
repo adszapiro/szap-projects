@@ -161,10 +161,12 @@ export async function runStockTournament(): Promise<TournamentResult> {
         // Data is already in correct format from getBars
         const data = bars;
         
-        // Get current position
+        // Get current position (only count LONG positions, not shorts)
         const position = positionMap.get(symbol);
-        const positionData = position ? {
-          qty: parseFloat(position.qty),
+        const positionQty = position ? parseFloat(position.qty) : 0;
+        // Only set positionData if we have a LONG position (qty > 0)
+        const positionData = (position && positionQty > 0) ? {
+          qty: positionQty,
           avgEntryPrice: parseFloat(position.avg_entry_price),
         } : null;
         
@@ -209,8 +211,9 @@ export async function runStockTournament(): Promise<TournamentResult> {
           } else {
             console.log(`⚠️ [STOCK] BUY skipped: qty=${qty}`);
           }
-        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
+        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData && positionData.qty > 0) {
           const currentPrice = data.close[data.close.length - 1];
+          console.log(`🔄 [STOCK] Attempting SELL: ${symbol} qty=${positionData.qty} @ $${currentPrice.toFixed(2)}`);
           try {
             const result = await placeOrder({
               symbol,
