@@ -185,11 +185,12 @@ export async function runStockTournament(): Promise<TournamentResult> {
           allocation,
         });
         
-        // Execute trade if confidence threshold met
+        // Execute trade if confidence threshold met (0.4 for more activity)
+        const CONFIDENCE_THRESHOLD = 0.4;
         let tradeExecuted = false;
         let tradeId: string | undefined;
         
-        if (signal.type === "buy" && signal.confidence >= 0.5 && !positionData) {
+        if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData) {
           const currentPrice = bars[bars.length - 1].close;
           const qty = Math.floor(maxPositionValue / currentPrice);
           
@@ -206,7 +207,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
             tradeExecuted = true;
             tradesExecuted++;
           }
-        } else if (signal.type === "sell" && signal.confidence >= 0.5 && positionData) {
+        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
           const orderId = await placeOrder(symbol, "sell", positionData.qty);
           tradeId = await saveTrade({
             strategy_id: strategy.id,
@@ -346,11 +347,12 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           allocation,
         });
         
-        // Execute trade if confidence threshold met
+        // Execute trade if confidence threshold met (0.4 for more activity)
+        const CONFIDENCE_THRESHOLD = 0.4;
         let tradeExecuted = false;
         let tradeId: string | undefined;
         
-        if (signal.type === "buy" && signal.confidence >= 0.5 && !positionData) {
+        if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData) {
           const currentPrice = bars[bars.length - 1].close;
           const qty = maxPositionValue / currentPrice;
           
@@ -368,7 +370,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
             tradeExecuted = true;
             tradesExecuted++;
           }
-        } else if (signal.type === "sell" && signal.confidence >= 0.5 && positionData) {
+        } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
           const currentPrice = bars[bars.length - 1].close;
           await placeSimulatedOrder(symbol, "sell", positionData.qty, currentPrice, strategy.id, signal.reason);
           

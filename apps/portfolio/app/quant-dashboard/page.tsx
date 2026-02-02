@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   getDailySnapshots,
@@ -19,6 +19,22 @@ import {
   ResearchPaper,
   StrategyWithPerformance,
 } from "@/lib/supabase";
+
+// Professional color scheme
+const COLORS = {
+  green: "#00C853",
+  red: "#FF5252",
+  blue: "#2196F3",
+  purple: "#9C27B0",
+  orange: "#FF9800",
+  cyan: "#00BCD4",
+  yellow: "#FFEB3B",
+};
+
+const STRATEGY_COLORS = [
+  "#2196F3", "#00BCD4", "#009688", "#4CAF50", "#8BC34A",
+  "#CDDC39", "#FFEB3B", "#FFC107", "#FF9800", "#FF5722",
+];
 
 export default function QuantDashboard() {
   const [snapshots, setSnapshots] = useState<DailySnapshot[]>([]);
@@ -40,16 +56,17 @@ export default function QuantDashboard() {
   }>({ isRunning: false, lastActivity: null });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState<"overview" | "tournament" | "trades" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "research" | "trades" | "logs">("overview");
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       const [snapshotsData, tradesData, strategiesData, logsData, status, papersData, leaderboardData, statsData] =
         await Promise.all([
           getDailySnapshots(30),
-          getRecentTrades(50),
+          getRecentTrades(100),
           getActiveStrategies(),
-          getRecentLogs(100),
+          getRecentLogs(200),
           getAgentStatus(),
           getResearchPapers(),
           getStrategiesWithPerformance(),
@@ -74,17 +91,71 @@ export default function QuantDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Calculate stats from trades and logs
-  const portfolioValue = 50000; // Simulated starting capital
-  const totalTrades = trades.length;
-  const winningTrades = trades.filter(t => t.pnl && t.pnl > 0).length;
-  const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
-  const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const pnlPercent = (totalPnL / portfolioValue) * 100;
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const portfolioValue = 100000;
+    const totalTrades = trades.length;
+    const winningTrades = trades.filter(t => t.pnl && t.pnl > 0).length;
+    const losingTrades = trades.filter(t => t.pnl && t.pnl < 0).length;
+    const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
+    const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const pnlPercent = (totalPnL / portfolioValue) * 100;
+    
+    // Calculate Sharpe-like ratio (simplified)
+    const returns = trades.filter(t => t.pnl).map(t => (t.pnl || 0) / portfolioValue);
+    const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
+    const stdDev = returns.length > 1 
+      ? Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length)
+      : 0;
+    const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0;
+
+    // Max drawdown (simplified)
+    let peak = portfolioValue;
+    let maxDrawdown = 0;
+    let runningValue = portfolioValue;
+    trades.forEach(t => {
+      runningValue += (t.pnl || 0);
+      if (runningValue > peak) peak = runningValue;
+      const drawdown = (peak - runningValue) / peak * 100;
+      if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+    });
+
+    // Today's stats
+    const today = new Date().toISOString().split('T')[0];
+    const todayTrades = trades.filter(t => t.created_at.startsWith(today));
+    const todayPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+
+    return {
+      portfolioValue: portfolioValue + totalPnL,
+      totalPnL,
+      pnlPercent,
+      totalTrades,
+      winningTrades,
+      losingTrades,
+      winRate,
+      sharpeRatio,
+      maxDrawdown,
+      todayTrades: todayTrades.length,
+      todayPnL,
+    };
+  }, [trades]);
+
+  // Strategy allocation data
+  const allocationData = useMemo(() => {
+    return leaderboard
+      .filter(s => s.performance?.current_weight && s.performance.current_weight > 0)
+      .map((s, i) => ({
+        name: s.name,
+        allocation: (s.performance?.current_weight || 0) * 100,
+        color: STRATEGY_COLORS[i % STRATEGY_COLORS.length],
+        pnl: s.performance?.total_pnl || 0,
+        winRate: s.expectedWinRate || 0.5,
+      }));
+  }, [leaderboard]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
@@ -93,483 +164,841 @@ export default function QuantDashboard() {
       minimumFractionDigits: 2,
     }).format(value);
 
+  const formatCompact = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      compactDisplay: "short",
+      maximumFractionDigits: 1,
+    }).format(value);
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">Loading dashboard...</p>
+          <div className="w-16 h-16 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-400 text-sm font-mono">Connecting to trading system...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Clean Header */}
-      <header className="border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-6">
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Professional Header */}
+      <header className="border-b border-gray-800/50 bg-[#0d0d14]">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Link
-                href="/"
-                className="text-gray-400 hover:text-black transition-colors text-sm"
-              >
-                ← Portfolio
+            <div className="flex items-center gap-8">
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                    Quant Research Terminal
+                  </h1>
+                  <p className="text-xs text-gray-500 font-mono">v2.0 | Paper Trading</p>
+                </div>
               </Link>
-              <div>
-                <h1 className="text-2xl font-semibold text-black">AI Quant Agent</h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  Autonomous trading with GPT-4 + Claude
-                </p>
+              
+              {/* Status Indicators */}
+              <div className="flex items-center gap-4 border-l border-gray-800 pl-6">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${agentStatus.isRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                  <span className="text-xs text-gray-400 font-mono">
+                    {agentStatus.isRunning ? "LIVE" : "OFFLINE"}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500 font-mono">
+                  {strategies.length} Strategies | {tournamentStats?.totalPapers || 0} Papers
+                </div>
               </div>
             </div>
+
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    agentStatus.isRunning ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                  }`}
-                />
-                <span className="text-sm text-gray-600">
-                  {agentStatus.isRunning ? "Live" : "Offline"}
-                </span>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 font-mono">Last Update</p>
+                <p className="text-sm text-gray-300 font-mono">{formatTime(lastRefresh.toISOString())}</p>
               </div>
+              <button
+                onClick={fetchData}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
               <a
                 href="https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-gray-500 hover:text-black transition-colors"
+                className="px-4 py-2 border border-gray-700 hover:border-gray-600 rounded-lg text-sm font-medium transition-colors"
               >
-                Source Code →
+                Source Code
               </a>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Key Metrics */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10"
-        >
-          <div className="p-6 border border-gray-200 rounded-lg">
-            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Portfolio Value</p>
-            <p className="text-3xl font-light text-black">
-              {formatCurrency(portfolioValue + totalPnL)}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Simulated Paper Trading</p>
-          </div>
-          <div className="p-6 border border-gray-200 rounded-lg">
-            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Total P&L</p>
-            <p className={`text-3xl font-light ${totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {totalPnL >= 0 ? "+" : ""}{formatCurrency(totalPnL)}
-            </p>
-            <p className={`text-xs mt-1 ${pnlPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%
-            </p>
-          </div>
-          <div className="p-6 border border-gray-200 rounded-lg">
-            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Total Trades</p>
-            <p className="text-3xl font-light text-black">{totalTrades}</p>
-            <p className="text-xs text-gray-400 mt-1">{strategies.length} active strategies</p>
-          </div>
-          <div className="p-6 border border-gray-200 rounded-lg">
-            <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">Win Rate</p>
-            <p className="text-3xl font-light text-black">{winRate.toFixed(0)}%</p>
-            <p className="text-xs text-gray-400 mt-1">{winningTrades} / {totalTrades} trades</p>
-          </div>
-        </motion.div>
-
-        {/* Tab Navigation */}
-        <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {(["overview", "tournament", "trades", "logs"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab
-                  ? "border-black text-black"
-                  : "border-transparent text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {tab === "tournament" ? "Tournament 🏆" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-2 py-2">
-            <button
-              onClick={fetchData}
-              className="text-xs text-gray-400 hover:text-black transition-colors"
-            >
-              Refresh
-            </button>
-            <span className="text-xs text-gray-300">|</span>
-            <span className="text-xs text-gray-400">
-              Updated {formatTime(lastRefresh.toISOString())}
-            </span>
+      {/* Key Metrics Bar */}
+      <div className="border-b border-gray-800/50 bg-[#0d0d14]/50">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            <MetricCard
+              label="Portfolio"
+              value={formatCurrency(metrics.portfolioValue)}
+              change={metrics.pnlPercent}
+              size="large"
+            />
+            <MetricCard
+              label="Total P&L"
+              value={formatCurrency(metrics.totalPnL)}
+              isPositive={metrics.totalPnL >= 0}
+              size="large"
+            />
+            <MetricCard
+              label="Today"
+              value={formatCurrency(metrics.todayPnL)}
+              isPositive={metrics.todayPnL >= 0}
+              subtext={`${metrics.todayTrades} trades`}
+            />
+            <MetricCard
+              label="Win Rate"
+              value={`${metrics.winRate.toFixed(1)}%`}
+              subtext={`${metrics.winningTrades}W / ${metrics.losingTrades}L`}
+              isPositive={metrics.winRate >= 50}
+            />
+            <MetricCard
+              label="Total Trades"
+              value={metrics.totalTrades.toString()}
+              subtext={`${strategies.length} strategies`}
+            />
+            <MetricCard
+              label="Sharpe Ratio"
+              value={metrics.sharpeRatio.toFixed(2)}
+              isPositive={metrics.sharpeRatio > 0}
+            />
+            <MetricCard
+              label="Max Drawdown"
+              value={`${metrics.maxDrawdown.toFixed(1)}%`}
+              isPositive={false}
+            />
+            <MetricCard
+              label="Avg Win Rate"
+              value={`${((tournamentStats?.averageWinRate || 0.5) * 100).toFixed(1)}%`}
+              subtext="Thompson Sampling"
+              isPositive={(tournamentStats?.averageWinRate || 0.5) >= 0.5}
+            />
           </div>
         </div>
+      </div>
 
-        {/* Tab Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeTab === "overview" && (
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Active Strategies */}
-              <div>
-                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                  Active Strategies
-                </h2>
-                <div className="space-y-3">
-                  {strategies.length === 0 ? (
-                    <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
-                      No active strategies. Agent will generate them automatically.
-                    </p>
-                  ) : (
-                    strategies.map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-medium text-black">{strategy.name}</h3>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              strategy.asset_class === "crypto"
-                                ? "bg-purple-50 text-purple-600"
-                                : "bg-blue-50 text-blue-600"
-                            }`}
-                          >
-                            {strategy.asset_class}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500 mb-3 line-clamp-2">
-                          {strategy.description}
-                        </p>
-                        <div className="flex gap-1 flex-wrap">
-                          {strategy.symbols?.slice(0, 5).map((symbol) => (
-                            <span
-                              key={symbol}
-                              className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded"
-                            >
-                              {symbol}
-                            </span>
-                          ))}
-                          {strategy.symbols && strategy.symbols.length > 5 && (
-                            <span className="text-xs px-2 py-0.5 text-gray-400">
-                              +{strategy.symbols.length - 5} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-800/50">
+        <div className="max-w-[1600px] mx-auto px-6">
+          <div className="flex gap-1">
+            {[
+              { id: "overview", label: "Overview", icon: "M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" },
+              { id: "strategies", label: "Strategies", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+              { id: "research", label: "Research", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+              { id: "trades", label: "Trade History", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+              { id: "logs", label: "System Logs", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`flex items-center gap-2 px-5 py-4 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab.id
+                    ? "border-blue-500 text-blue-400 bg-blue-500/5"
+                    : "border-transparent text-gray-400 hover:text-gray-300 hover:bg-gray-800/30"
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                </svg>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-              {/* Recent Activity */}
-              <div>
-                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                  Recent Activity
-                </h2>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-[400px] overflow-auto">
-                  {logs.length === 0 ? (
-                    <p className="text-gray-400 text-sm py-8 text-center">
-                      No activity yet. Start the agent to see logs.
-                    </p>
-                  ) : (
-                    logs.slice(0, 20).map((log) => (
-                      <div key={log.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                              log.level === "error"
-                                ? "bg-red-500"
-                                : log.level === "warning"
-                                ? "bg-yellow-500"
-                                : log.level === "decision"
-                                ? "bg-purple-500"
-                                : "bg-blue-500"
-                            }`}
-                          />
-                          <span className="text-sm text-black flex-1 truncate">
-                            {log.action}
-                          </span>
-                          <span className="text-xs text-gray-400 flex-shrink-0">
-                            {formatTime(log.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "tournament" && (
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Strategy Leaderboard */}
-              <div>
-                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                  Strategy Leaderboard
-                </h2>
-                {leaderboard.length === 0 ? (
-                  <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
-                    No strategies in tournament yet.
-                  </p>
-                ) : (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strategy</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Win Rate</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Allocation</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {leaderboard.slice(0, 10).map((strategy) => (
-                          <tr key={strategy.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                              <span className={`text-sm font-medium ${
-                                strategy.rank === 1 ? "text-yellow-600" :
-                                strategy.rank === 2 ? "text-gray-500" :
-                                strategy.rank === 3 ? "text-orange-600" : "text-gray-400"
-                              }`}>
-                                {strategy.rank === 1 ? "🥇" : strategy.rank === 2 ? "🥈" : strategy.rank === 3 ? "🥉" : `#${strategy.rank}`}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="font-medium text-black truncate max-w-[200px]">{strategy.name}</div>
-                              <div className="text-xs text-gray-400">{strategy.asset_class}</div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={`font-medium ${
-                                (strategy.expectedWinRate || 0) >= 0.55 ? "text-green-600" :
-                                (strategy.expectedWinRate || 0) <= 0.45 ? "text-red-600" : "text-gray-600"
-                              }`}>
-                                {((strategy.expectedWinRate || 0.5) * 100).toFixed(1)}%
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right text-gray-600">
-                              {((strategy.performance?.current_weight || 0) * 100).toFixed(1)}%
-                            </td>
-                            <td className={`px-4 py-3 text-right font-medium ${
-                              (strategy.performance?.total_pnl || 0) >= 0 ? "text-green-600" : "text-red-600"
-                            }`}>
-                              {formatCurrency(strategy.performance?.total_pnl || 0)}
-                            </td>
+      {/* Main Content */}
+      <main className="max-w-[1600px] mx-auto px-6 py-6">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === "overview" && (
+              <div className="grid lg:grid-cols-3 gap-6">
+                {/* Left Column - Strategy Performance */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Strategy Leaderboard */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Strategy Performance
+                      </h2>
+                      <span className="text-xs text-gray-500 font-mono">Thompson Sampling • Real-time</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gray-900/50 text-xs text-gray-400 uppercase font-mono">
+                            <th className="px-6 py-3 text-left">Rank</th>
+                            <th className="px-6 py-3 text-left">Strategy</th>
+                            <th className="px-6 py-3 text-center">Asset</th>
+                            <th className="px-6 py-3 text-right">Win Rate</th>
+                            <th className="px-6 py-3 text-right">Allocation</th>
+                            <th className="px-6 py-3 text-right">Trades</th>
+                            <th className="px-6 py-3 text-right">P&L</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800/30">
+                          {leaderboard.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                <div className="flex flex-col items-center gap-2">
+                                  <svg className="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  <p className="text-sm">Initializing strategies...</p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            leaderboard.map((strategy, idx) => {
+                              const winRate = (strategy.expectedWinRate || 0.5) * 100;
+                              const allocation = (strategy.performance?.current_weight || 0) * 100;
+                              const pnl = strategy.performance?.total_pnl || 0;
+                              const trades = strategy.performance?.total_trades || 0;
+                              
+                              return (
+                                <tr 
+                                  key={strategy.id} 
+                                  className="hover:bg-gray-800/30 transition-colors cursor-pointer"
+                                  onClick={() => setSelectedStrategy(selectedStrategy === strategy.id ? null : strategy.id)}
+                                >
+                                  <td className="px-6 py-4">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                                      strategy.rank === 1 ? "bg-yellow-500/20 text-yellow-400" :
+                                      strategy.rank === 2 ? "bg-gray-400/20 text-gray-300" :
+                                      strategy.rank === 3 ? "bg-orange-500/20 text-orange-400" :
+                                      "bg-gray-800 text-gray-500"
+                                    }`}>
+                                      {strategy.rank}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                      <div 
+                                        className="w-1 h-10 rounded-full" 
+                                        style={{ backgroundColor: STRATEGY_COLORS[idx % STRATEGY_COLORS.length] }}
+                                      />
+                                      <div>
+                                        <p className="font-medium text-white text-sm">{strategy.name}</p>
+                                        <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                                          {strategy.description?.slice(0, 50)}...
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-center">
+                                    <span className={`inline-flex px-2 py-1 rounded text-xs font-mono ${
+                                      strategy.asset_class === "crypto" 
+                                        ? "bg-purple-500/20 text-purple-400"
+                                        : "bg-blue-500/20 text-blue-400"
+                                    }`}>
+                                      {strategy.asset_class.toUpperCase()}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div 
+                                          className={`h-full rounded-full transition-all ${
+                                            winRate >= 55 ? "bg-green-500" :
+                                            winRate <= 45 ? "bg-red-500" : "bg-yellow-500"
+                                          }`}
+                                          style={{ width: `${winRate}%` }}
+                                        />
+                                      </div>
+                                      <span className={`font-mono text-sm ${
+                                        winRate >= 55 ? "text-green-400" :
+                                        winRate <= 45 ? "text-red-400" : "text-gray-300"
+                                      }`}>
+                                        {winRate.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <div className="w-12 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div 
+                                          className="h-full bg-cyan-500 rounded-full transition-all"
+                                          style={{ width: `${Math.min(allocation * 2.5, 100)}%` }}
+                                        />
+                                      </div>
+                                      <span className="font-mono text-sm text-cyan-400">
+                                        {allocation.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-right font-mono text-sm text-gray-400">
+                                    {trades}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <span className={`font-mono text-sm font-medium ${
+                                      pnl >= 0 ? "text-green-400" : "text-red-400"
+                                    }`}>
+                                      {pnl >= 0 ? "+" : ""}{formatCurrency(pnl)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
 
-                {/* Tournament Stats */}
-                {tournamentStats && (
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-xs font-medium text-gray-500 uppercase mb-3">Tournament Stats</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-400">Total Strategies</p>
-                        <p className="font-medium text-black">{tournamentStats.totalStrategies}</p>
+                  {/* Recent Trades */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Recent Trades
+                      </h2>
+                      <Link href="#" onClick={() => setActiveTab("trades")} className="text-xs text-blue-400 hover:text-blue-300">
+                        View All →
+                      </Link>
+                    </div>
+                    <div className="divide-y divide-gray-800/30 max-h-[300px] overflow-auto">
+                      {trades.length === 0 ? (
+                        <div className="px-6 py-8 text-center text-gray-500">
+                          <p className="text-sm">Waiting for market signals...</p>
+                        </div>
+                      ) : (
+                        trades.slice(0, 10).map((trade) => (
+                          <div key={trade.id} className="px-6 py-3 hover:bg-gray-800/20 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  trade.side === "buy" ? "bg-green-500" : "bg-red-500"
+                                }`} />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-medium text-white">{trade.symbol}</span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                      trade.side === "buy" 
+                                        ? "bg-green-500/20 text-green-400"
+                                        : "bg-red-500/20 text-red-400"
+                                    }`}>
+                                      {trade.side.toUpperCase()}
+                                    </span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                      trade.asset_class === "crypto"
+                                        ? "bg-purple-500/10 text-purple-400"
+                                        : "bg-blue-500/10 text-blue-400"
+                                    }`}>
+                                      {trade.asset_class}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 font-mono">
+                                    {trade.qty} @ ${trade.price?.toFixed(2) || "--"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                {trade.pnl !== null && (
+                                  <p className={`font-mono font-medium ${
+                                    trade.pnl >= 0 ? "text-green-400" : "text-red-400"
+                                  }`}>
+                                    {trade.pnl >= 0 ? "+" : ""}{formatCurrency(trade.pnl)}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-500 font-mono">
+                                  {formatTime(trade.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Allocation & Activity */}
+                <div className="space-y-6">
+                  {/* Capital Allocation */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+                    <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
+                      Capital Allocation
+                    </h2>
+                    {allocationData.length === 0 ? (
+                      <div className="py-8 text-center text-gray-500">
+                        <p className="text-sm">Allocating capital...</p>
                       </div>
-                      <div>
-                        <p className="text-gray-400">Total Trades</p>
-                        <p className="font-medium text-black">{tournamentStats.totalTrades}</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {allocationData.slice(0, 8).map((item, idx) => (
+                          <div key={idx} className="group">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-400 truncate max-w-[150px]">{item.name}</span>
+                              <span className="text-xs font-mono text-cyan-400">{item.allocation.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${item.allocation * 2.5}%` }}
+                                transition={{ duration: 0.5, delay: idx * 0.05 }}
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-gray-400">Avg Win Rate</p>
-                        <p className="font-medium text-black">{(tournamentStats.averageWinRate * 100).toFixed(1)}%</p>
+                    )}
+                  </div>
+
+                  {/* System Status */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+                    <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${agentStatus.isRunning ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></span>
+                      System Status
+                    </h2>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
+                        <span className="text-xs text-gray-400">Trading Engine</span>
+                        <span className={`text-xs font-mono ${agentStatus.isRunning ? "text-green-400" : "text-red-400"}`}>
+                          {agentStatus.isRunning ? "ONLINE" : "OFFLINE"}
+                        </span>
                       </div>
-                      <div>
-                        <p className="text-gray-400">Research Papers</p>
-                        <p className="font-medium text-black">{tournamentStats.totalPapers}</p>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
+                        <span className="text-xs text-gray-400">Mode</span>
+                        <span className="text-xs font-mono text-yellow-400">PAPER</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
+                        <span className="text-xs text-gray-400">Active Strategies</span>
+                        <span className="text-xs font-mono text-blue-400">{strategies.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
+                        <span className="text-xs text-gray-400">Research Papers</span>
+                        <span className="text-xs font-mono text-purple-400">{papers.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-xs text-gray-400">Last Activity</span>
+                        <span className="text-xs font-mono text-gray-300">
+                          {agentStatus.lastActivity ? formatTime(agentStatus.lastActivity) : "--"}
+                        </span>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Research Papers Library */}
-              <div>
-                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                  Research Paper Library
-                </h2>
-                {papers.length === 0 ? (
-                  <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
-                    No research papers added yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-auto">
-                    {papers.map((paper) => (
-                      <div
-                        key={paper.id}
-                        className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-medium text-black text-sm">{paper.title}</h3>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              paper.status === "active"
-                                ? "bg-green-50 text-green-600"
-                                : paper.status === "extracted"
-                                ? "bg-blue-50 text-blue-600"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {paper.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-2">
-                          {paper.authors?.join(", ")} ({paper.year}) • {paper.source}
-                        </p>
-                        {paper.key_insights && paper.key_insights.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-100">
-                            <p className="text-xs text-gray-400 mb-1">Key Insights:</p>
-                            <ul className="text-xs text-gray-600 space-y-0.5">
-                              {paper.key_insights.slice(0, 2).map((insight, i) => (
-                                <li key={i}>• {insight}</li>
-                              ))}
-                              {paper.key_insights.length > 2 && (
-                                <li className="text-gray-400">+{paper.key_insights.length - 2} more...</li>
-                              )}
-                            </ul>
+                  {/* Live Activity Feed */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-800/50">
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
+                        Live Activity
+                      </h2>
+                    </div>
+                    <div className="divide-y divide-gray-800/30 max-h-[250px] overflow-auto">
+                      {logs.slice(0, 15).map((log) => (
+                        <div key={log.id} className="px-4 py-2 hover:bg-gray-800/20 transition-colors">
+                          <div className="flex items-start gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                              log.level === "error" ? "bg-red-500" :
+                              log.level === "warning" ? "bg-yellow-500" :
+                              log.level === "decision" ? "bg-purple-500" : "bg-blue-500"
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-300 truncate">{log.action}</p>
+                              <p className="text-[10px] text-gray-500 font-mono">{formatTime(log.created_at)}</p>
+                            </div>
                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "strategies" && (
+              <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {strategies.map((strategy, idx) => {
+                  const perf = leaderboard.find(l => l.id === strategy.id);
+                  const winRate = (perf?.expectedWinRate || 0.5) * 100;
+                  const allocation = (perf?.performance?.current_weight || 0) * 100;
+                  
+                  return (
+                    <motion.div
+                      key={strategy.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="bg-[#12121a] border border-gray-800/50 rounded-xl p-5 hover:border-gray-700/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-3 h-10 rounded-full" 
+                            style={{ backgroundColor: STRATEGY_COLORS[idx % STRATEGY_COLORS.length] }}
+                          />
+                          <div>
+                            <h3 className="font-semibold text-white">{strategy.name}</h3>
+                            <p className="text-xs text-gray-500 font-mono">Rank #{perf?.rank || "--"}</p>
+                          </div>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded font-mono ${
+                          strategy.asset_class === "crypto" 
+                            ? "bg-purple-500/20 text-purple-400"
+                            : "bg-blue-500/20 text-blue-400"
+                        }`}>
+                          {strategy.asset_class.toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      <p className="text-sm text-gray-400 mb-4 line-clamp-2">{strategy.description}</p>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase mb-1">Win Rate</p>
+                          <p className={`text-lg font-mono font-bold ${
+                            winRate >= 55 ? "text-green-400" :
+                            winRate <= 45 ? "text-red-400" : "text-gray-300"
+                          }`}>
+                            {winRate.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase mb-1">Allocation</p>
+                          <p className="text-lg font-mono font-bold text-cyan-400">
+                            {allocation.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1.5">
+                        {strategy.symbols?.slice(0, 6).map((symbol) => (
+                          <span
+                            key={symbol}
+                            className="text-[10px] px-2 py-1 bg-gray-800/50 text-gray-400 rounded font-mono"
+                          >
+                            {symbol}
+                          </span>
+                        ))}
+                        {(strategy.symbols?.length || 0) > 6 && (
+                          <span className="text-[10px] px-2 py-1 text-gray-500">
+                            +{(strategy.symbols?.length || 0) - 6}
+                          </span>
                         )}
                       </div>
-                    ))}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === "research" && (
+              <div className="grid lg:grid-cols-2 gap-4">
+                {papers.length === 0 ? (
+                  <div className="lg:col-span-2 bg-[#12121a] border border-gray-800/50 rounded-xl p-12 text-center">
+                    <svg className="w-12 h-12 text-gray-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <p className="text-gray-400">No research papers loaded</p>
                   </div>
+                ) : (
+                  papers.map((paper, idx) => {
+                    const linkedStrategies = strategies.filter(s => 
+                      s.name.toLowerCase().includes(paper.title.split(' ')[0].toLowerCase())
+                    );
+                    
+                    return (
+                      <motion.div
+                        key={paper.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden hover:border-gray-700/50 transition-colors"
+                      >
+                        <div className="p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-white mb-1 line-clamp-2">{paper.title}</h3>
+                              <p className="text-xs text-gray-500">
+                                {paper.authors?.join(", ")} • {paper.year}
+                              </p>
+                            </div>
+                            <span className={`ml-3 text-[10px] px-2 py-1 rounded font-mono ${
+                              paper.status === "active" ? "bg-green-500/20 text-green-400" :
+                              paper.status === "extracted" ? "bg-blue-500/20 text-blue-400" :
+                              "bg-gray-800 text-gray-400"
+                            }`}>
+                              {paper.status.toUpperCase()}
+                            </span>
+                          </div>
+                          
+                          {paper.key_insights && paper.key_insights.length > 0 && (
+                            <div className="mb-4">
+                              <p className="text-[10px] text-gray-500 uppercase mb-2">Key Insights</p>
+                              <ul className="space-y-1">
+                                {paper.key_insights.slice(0, 3).map((insight, i) => (
+                                  <li key={i} className="text-xs text-gray-400 flex items-start gap-2">
+                                    <span className="text-blue-500 mt-0.5">•</span>
+                                    {insight}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-800/30">
+                            <span className="text-[10px] text-gray-500 font-mono">{paper.source}</span>
+                            {paper.pdf_url && (
+                              <a 
+                                href={paper.pdf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                              >
+                                View Paper →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === "trades" && (
-            <div>
-              <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                Trade History
-              </h2>
-              {trades.length === 0 ? (
-                <p className="text-gray-400 text-sm py-12 text-center border border-dashed border-gray-200 rounded-lg">
-                  No trades executed yet. The agent will trade when market conditions are met.
-                </p>
-              ) : (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Side</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
+            {activeTab === "trades" && (
+              <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-white">Trade History</h2>
+                  <span className="text-xs text-gray-500 font-mono">{trades.length} total trades</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-900/50 text-xs text-gray-400 uppercase font-mono">
+                        <th className="px-6 py-3 text-left">Time</th>
+                        <th className="px-6 py-3 text-left">Symbol</th>
+                        <th className="px-6 py-3 text-center">Side</th>
+                        <th className="px-6 py-3 text-center">Asset</th>
+                        <th className="px-6 py-3 text-right">Quantity</th>
+                        <th className="px-6 py-3 text-right">Price</th>
+                        <th className="px-6 py-3 text-right">Value</th>
+                        <th className="px-6 py-3 text-right">P&L</th>
+                        <th className="px-6 py-3 text-center">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {trades.map((trade) => (
-                        <tr key={trade.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-500">{formatTime(trade.created_at)}</td>
-                          <td className="px-4 py-3 font-medium text-black">{trade.symbol}</td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`text-xs font-medium px-2 py-0.5 rounded ${
-                                trade.side === "buy"
-                                  ? "bg-green-50 text-green-600"
-                                  : "bg-red-50 text-red-600"
-                              }`}
-                            >
-                              {trade.side.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">{trade.qty}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            ${trade.price?.toFixed(2) || "--"}
-                          </td>
-                          <td className={`px-4 py-3 text-right font-medium ${
-                            trade.pnl && trade.pnl >= 0 ? "text-green-600" : "text-red-600"
-                          }`}>
-                            {trade.pnl ? formatCurrency(trade.pnl) : "--"}
+                    <tbody className="divide-y divide-gray-800/30">
+                      {trades.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                            <svg className="w-8 h-8 text-gray-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <p className="text-sm">No trades executed yet</p>
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        trades.map((trade) => (
+                          <tr key={trade.id} className="hover:bg-gray-800/20 transition-colors">
+                            <td className="px-6 py-3">
+                              <div>
+                                <p className="text-sm text-white font-mono">{formatTime(trade.created_at)}</p>
+                                <p className="text-[10px] text-gray-500">{formatDate(trade.created_at)}</p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3">
+                              <span className="font-mono font-semibold text-white">{trade.symbol}</span>
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <span className={`inline-flex px-2 py-1 rounded text-xs font-mono font-medium ${
+                                trade.side === "buy" 
+                                  ? "bg-green-500/20 text-green-400"
+                                  : "bg-red-500/20 text-red-400"
+                              }`}>
+                                {trade.side.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <span className={`inline-flex px-2 py-1 rounded text-[10px] font-mono ${
+                                trade.asset_class === "crypto"
+                                  ? "bg-purple-500/10 text-purple-400"
+                                  : "bg-blue-500/10 text-blue-400"
+                              }`}>
+                                {trade.asset_class.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                              {trade.qty}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                              ${trade.price?.toFixed(2) || "--"}
+                            </td>
+                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                              {trade.price ? formatCurrency(trade.qty * trade.price) : "--"}
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              {trade.pnl !== null ? (
+                                <span className={`font-mono text-sm font-medium ${
+                                  trade.pnl >= 0 ? "text-green-400" : "text-red-400"
+                                }`}>
+                                  {trade.pnl >= 0 ? "+" : ""}{formatCurrency(trade.pnl)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">--</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-center">
+                              <span className={`inline-flex px-2 py-1 rounded text-[10px] font-mono ${
+                                trade.status === "filled" ? "bg-green-500/20 text-green-400" :
+                                trade.status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
+                                "bg-gray-800 text-gray-400"
+                              }`}>
+                                {trade.status.toUpperCase()}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === "logs" && (
-            <div>
-              <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
-                Agent Logs
-              </h2>
-              <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-900 text-gray-100 font-mono text-xs">
-                <div className="max-h-[500px] overflow-auto p-4 space-y-1">
-                  {logs.length === 0 ? (
-                    <p className="text-gray-500 py-8 text-center">No logs available</p>
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className="flex gap-3 py-1 hover:bg-gray-800/50">
-                        <span className="text-gray-500 flex-shrink-0">
-                          {formatTime(log.created_at)}
+            {activeTab === "logs" && (
+              <div className="bg-[#0a0a0f] border border-gray-800/50 rounded-xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between bg-[#12121a]">
+                  <h2 className="text-sm font-semibold text-white font-mono">System Logs</h2>
+                  <span className="text-xs text-gray-500 font-mono">{logs.length} entries</span>
+                </div>
+                <div className="font-mono text-xs max-h-[600px] overflow-auto">
+                  {logs.map((log) => (
+                    <div 
+                      key={log.id} 
+                      className="px-6 py-2 hover:bg-gray-900/50 transition-colors border-b border-gray-900/50 flex gap-4"
+                    >
+                      <span className="text-gray-600 flex-shrink-0 w-20">
+                        {formatTime(log.created_at)}
+                      </span>
+                      <span className={`flex-shrink-0 w-16 ${
+                        log.level === "error" ? "text-red-400" :
+                        log.level === "warning" ? "text-yellow-400" :
+                        log.level === "decision" ? "text-purple-400" :
+                        "text-blue-400"
+                      }`}>
+                        [{log.level.toUpperCase()}]
+                      </span>
+                      <span className="text-gray-300 flex-1">{log.action}</span>
+                      {log.details && Object.keys(log.details).length > 0 && (
+                        <span className="text-gray-600 truncate max-w-[300px]">
+                          {JSON.stringify(log.details)}
                         </span>
-                        <span
-                          className={`flex-shrink-0 w-16 ${
-                            log.level === "error"
-                              ? "text-red-400"
-                              : log.level === "warning"
-                              ? "text-yellow-400"
-                              : log.level === "decision"
-                              ? "text-purple-400"
-                              : "text-blue-400"
-                          }`}
-                        >
-                          [{log.level}]
-                        </span>
-                        <span className="text-gray-300">{log.action}</span>
-                        {log.details && Object.keys(log.details).length > 0 && (
-                          <span className="text-gray-600 truncate">
-                            {JSON.stringify(log.details)}
-                          </span>
-                        )}
-                      </div>
-                    ))
-                  )}
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Footer */}
-        <footer className="mt-16 pt-8 border-t border-gray-200 text-center">
-          <p className="text-xs text-gray-400">
-            Paper trading simulation using real market data. Tournament mode with Thompson Sampling bandit learns from results. Auto-refreshes every 15 seconds.
-          </p>
-        </footer>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-800/50 mt-8">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <div className="flex items-center gap-4">
+              <span className="font-mono">Paper Trading Simulation</span>
+              <span>•</span>
+              <span>Thompson Sampling Allocation</span>
+              <span>•</span>
+              <span>Auto-refresh 10s</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="font-mono">Connected</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+// Metric Card Component
+function MetricCard({ 
+  label, 
+  value, 
+  change, 
+  subtext, 
+  isPositive, 
+  size = "normal" 
+}: { 
+  label: string; 
+  value: string; 
+  change?: number;
+  subtext?: string;
+  isPositive?: boolean;
+  size?: "normal" | "large";
+}) {
+  return (
+    <div className={`${size === "large" ? "col-span-1" : ""}`}>
+      <p className="text-[10px] text-gray-500 uppercase font-mono mb-1">{label}</p>
+      <p className={`font-mono font-semibold ${
+        size === "large" ? "text-xl" : "text-lg"
+      } ${
+        isPositive === true ? "text-green-400" :
+        isPositive === false ? "text-red-400" : "text-white"
+      }`}>
+        {value}
+      </p>
+      {change !== undefined && (
+        <p className={`text-xs font-mono ${change >= 0 ? "text-green-400" : "text-red-400"}`}>
+          {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+        </p>
+      )}
+      {subtext && (
+        <p className="text-[10px] text-gray-500 font-mono mt-0.5">{subtext}</p>
+      )}
     </div>
   );
 }
