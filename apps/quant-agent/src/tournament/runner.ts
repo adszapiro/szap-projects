@@ -293,7 +293,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
   const allocations = await sampleAllocation();
   
   // Get account value
-  const accountValue = getSimulatedAccountValue();
+  const accountData = await getSimulatedAccountValue();
+  const accountValue = accountData.totalValue;
   
   // Run each strategy
   for (const strategy of strategies) {
