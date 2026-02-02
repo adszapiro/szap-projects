@@ -19,15 +19,23 @@
     "deploy:backtester": "vercel --prod --cwd apps/backtester",
     "deploy:trading": "vercel --prod --cwd apps/trading-bot",
     "test": "turbo run test",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:all": "npm run test:unit && npm run test:e2e",
     "clean": "turbo run clean && rm -rf node_modules",
     "setup": "npm install && npm run build"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@vitejs/plugin-react": "^5.1.2",
+    "jsdom": "^27.4.0",
     "prettier": "^3.6.0",
     "prettier-plugin-tailwindcss": "^0.7.1",
-    "turbo": "^2.8.1"
+    "turbo": "^2.8.1",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18"
