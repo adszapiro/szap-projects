@@ -58,17 +58,6 @@ export const projects: Project[] = [
     repo: "https://github.com/adszapiro/szap-projects",
   },
   
-  // STANDARD TIER - Trading & Finance
-  {
-    title: "Paper Trading Bot",
-    description: "Real-time paper trading dashboard with Alpaca integration. View account balance, positions, orders, and execute market/limit trades with demo mode for showcasing.",
-    tech: "Next.js, TypeScript, Alpaca API",
-    link: "https://trading.alexszapiro.com",
-    status: "live",
-    tier: "standard",
-    repo: "https://github.com/adszapiro/szap-projects",
-  },
-  
   // STANDARD TIER - Developer Tools
   {
     title: "DevPulse",
