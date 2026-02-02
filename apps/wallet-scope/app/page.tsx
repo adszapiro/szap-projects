@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   Shield,
   Activity,
-  PieChart,
+  PieChart as PieChartIcon,
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
@@ -19,6 +19,7 @@ import {
   HelpCircle,
   RotateCcw
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 interface TokenBalance {
   symbol: string;
@@ -66,6 +67,9 @@ export default function Home() {
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [showRiskTooltip, setShowRiskTooltip] = useState(false);
 
+  // Demo wallet address (Vitalik's public wallet)
+  const DEMO_WALLET = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+
   // Load recent searches from localStorage (Nielsen #6: Recognition over Recall)
   useEffect(() => {
     try {
@@ -75,6 +79,36 @@ export default function Home() {
       }
     } catch (e) {
       console.error("Failed to load recent searches", e);
+    }
+  }, []);
+
+  // Auto-load demo wallet on first visit
+  useEffect(() => {
+    const hasSeenDemo = localStorage.getItem("walletscope-demo-shown");
+    if (!hasSeenDemo) {
+      setAddress(DEMO_WALLET);
+      // Trigger analysis after a small delay
+      const timer = setTimeout(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const response = await fetch("/api/wallet", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: DEMO_WALLET }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setResult(data);
+          }
+        } catch (err) {
+          console.error("Demo wallet fetch failed", err);
+        } finally {
+          setIsLoading(false);
+          localStorage.setItem("walletscope-demo-shown", "true");
+        }
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -180,7 +214,7 @@ export default function Home() {
             </div>
           </div>
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             Back to Portfolio
@@ -370,7 +404,7 @@ export default function Home() {
               {/* Diversification */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
                 <div className="flex items-center gap-2 text-gray-400 mb-2">
-                  <PieChart className="w-4 h-4" />
+                  <PieChartIcon className="w-4 h-4" />
                   <span className="text-sm">Diversification</span>
                 </div>
                 <p className="text-2xl font-bold text-white">
@@ -390,6 +424,97 @@ export default function Home() {
                 <p className="text-2xl font-bold text-white capitalize">
                   {result.activityLevel}
                 </p>
+              </div>
+            </div>
+
+            {/* Portfolio Distribution Chart */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <PieChartIcon className="w-5 h-5 text-orange-400" />
+                  Portfolio Distribution
+                </h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "ETH", value: result.ethUsdValue, color: "#627EEA" },
+                          ...result.tokens.map((token, i) => ({
+                            name: token.symbol,
+                            value: token.usdValue,
+                            color: ["#F7931A", "#26A17B", "#E84142", "#2775CA", "#8247E5"][i % 5],
+                          })),
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {[
+                          { name: "ETH", value: result.ethUsdValue, color: "#627EEA" },
+                          ...result.tokens.map((token, i) => ({
+                            name: token.symbol,
+                            value: token.usdValue,
+                            color: ["#F7931A", "#26A17B", "#E84142", "#2775CA", "#8247E5"][i % 5],
+                          })),
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => formatUsd(value)}
+                        contentStyle={{
+                          backgroundColor: "#1f2937",
+                          border: "1px solid #374151",
+                          borderRadius: "8px",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Risk Factors */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-orange-400" />
+                  Risk Analysis
+                </h3>
+                <div className="space-y-3">
+                  {result.riskFactors.map((factor, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg border ${
+                        factor.impact === "high"
+                          ? "bg-red-900/20 border-red-800"
+                          : factor.impact === "medium"
+                          ? "bg-yellow-900/20 border-yellow-800"
+                          : "bg-green-900/20 border-green-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white text-sm font-medium">{factor.factor}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            factor.impact === "high"
+                              ? "bg-red-800 text-red-200"
+                              : factor.impact === "medium"
+                              ? "bg-yellow-800 text-yellow-200"
+                              : "bg-green-800 text-green-200"
+                          }`}
+                        >
+                          {factor.impact}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs">{factor.description}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -563,7 +688,7 @@ export default function Home() {
       <footer className="border-t border-gray-800 mt-20">
         <div className="max-w-7xl mx-auto px-6 py-8 text-center text-gray-500 text-sm">
           Built by Alex Szapiro | Part of the{" "}
-          <a href="https://portfolio-adszapiro.vercel.app" className="text-orange-400 hover:text-orange-300">
+          <a href="https://alexszapiro.com" className="text-orange-400 hover:text-orange-300">
             Portfolio
           </a>
         </div>

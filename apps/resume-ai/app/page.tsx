@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { FileText, Sparkles, Upload, ArrowRight, CheckCircle, AlertCircle, Loader2, RotateCcw, Zap } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { FileText, Sparkles, Upload, ArrowRight, CheckCircle, AlertCircle, Loader2, RotateCcw, Zap, FileUp } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Suggestion {
   type: "improvement" | "addition" | "warning";
@@ -68,6 +72,47 @@ export default function Home() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle PDF file upload
+  const handlePdfUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      setError("Please upload a PDF file.");
+      return;
+    }
+
+    setIsPdfLoading(true);
+    setError(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ");
+        fullText += pageText + "\n";
+      }
+
+      setResumeText(fullText.trim());
+    } catch (err) {
+      console.error("PDF parsing error:", err);
+      setError("Failed to parse PDF. Please try pasting the text manually.");
+    } finally {
+      setIsPdfLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, []);
 
   // Load sample data (Nielsen #6: Recognition over Recall)
   const loadSampleData = useCallback(() => {
@@ -142,7 +187,7 @@ export default function Home() {
             </div>
           </div>
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             Back to Portfolio
@@ -166,14 +211,46 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           {/* Resume Input */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Upload className="w-5 h-5 text-purple-400" />
-              <h3 className="text-lg font-semibold text-white">Your Resume</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Upload className="w-5 h-5 text-purple-400" />
+                <h3 className="text-lg font-semibold text-white">Your Resume</h3>
+              </div>
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handlePdfUpload}
+                  className="hidden"
+                  id="pdf-upload"
+                />
+                <label
+                  htmlFor="pdf-upload"
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors ${
+                    isPdfLoading
+                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      : "bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
+                  }`}
+                >
+                  {isPdfLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Parsing...
+                    </>
+                  ) : (
+                    <>
+                      <FileUp className="w-4 h-4" />
+                      Upload PDF
+                    </>
+                  )}
+                </label>
+              </div>
             </div>
             <textarea
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
-              placeholder="Paste your resume text here...
+              placeholder="Paste your resume text here or upload a PDF...
 
 Example:
 ALEX SZAPIRO
@@ -460,7 +537,7 @@ Nice to have:
       <footer className="border-t border-gray-800 mt-20">
         <div className="max-w-7xl mx-auto px-6 py-8 text-center text-gray-500 text-sm">
           Built by Alex Szapiro | Part of the{" "}
-          <a href="https://portfolio-adszapiro.vercel.app" className="text-purple-400 hover:text-purple-300">
+          <a href="https://alexszapiro.com" className="text-purple-400 hover:text-purple-300">
             Portfolio
           </a>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Github,
   Search,
@@ -58,14 +58,15 @@ export default function Home() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    if (!username.trim()) return;
+  const fetchData = useCallback(async (user?: string) => {
+    const targetUser = user || username;
+    if (!targetUser.trim()) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`/api/github?username=${encodeURIComponent(username)}`);
+      const res = await fetch(`/api/github?username=${encodeURIComponent(targetUser)}`);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Failed to fetch data");
@@ -77,7 +78,12 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [username]);
+
+  // Auto-load default user on mount
+  useEffect(() => {
+    fetchData("adszapiro");
+  }, []);
 
   const getContribColor = (level: number) => {
     const colors = [
@@ -103,7 +109,7 @@ export default function Home() {
             </div>
           </div>
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="text-sm text-[#8b949e] hover:text-white transition-colors"
           >
             Back to Portfolio
@@ -128,7 +134,7 @@ export default function Home() {
               />
             </div>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               disabled={isLoading}
               className="px-6 py-3 bg-[#238636] hover:bg-[#2ea043] disabled:bg-[#21262d] text-white font-medium rounded-lg transition-colors"
             >
@@ -328,7 +334,7 @@ export default function Home() {
       <footer className="border-t border-[#30363d] mt-16">
         <div className="max-w-6xl mx-auto px-6 py-6 text-center text-[#8b949e] text-sm">
           Built by Alex Szapiro |{" "}
-          <a href="https://portfolio-adszapiro.vercel.app" className="text-[#58a6ff] hover:underline">
+          <a href="https://alexszapiro.com" className="text-[#58a6ff] hover:underline">
             Portfolio
           </a>
         </div>
