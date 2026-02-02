@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useId } from "react";
+import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import type { Project } from "@/data/projects";
 
@@ -68,31 +69,40 @@ export default function ProjectAccordion({ project }: ProjectAccordionProps) {
         {project.links && project.links.length > 0 ? (
           <div className="flex flex-wrap gap-3">
             {project.links.map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target={link.url.startsWith("http") ? "_blank" : undefined}
-                rel={link.url.startsWith("http") ? "noopener noreferrer" : undefined}
-                aria-label={`${link.label} for ${project.title}${link.url.startsWith("http") ? " (opens in new tab)" : ""}`}
-                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--accent)] hover:text-white transition-colors border border-[var(--border)]"
-              >
-                {link.label}
-                {link.url.startsWith("http") && (
+              link.url.startsWith("/") ? (
+                <Link
+                  key={link.label}
+                  href={link.url}
+                  aria-label={`${link.label} for ${project.title}`}
+                  className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--accent)] hover:text-white transition-colors border border-[var(--border)]"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${link.label} for ${project.title} (opens in new tab)`}
+                  className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--accent)] hover:text-white transition-colors border border-[var(--border)]"
+                >
+                  {link.label}
                   <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                )}
-              </a>
+                </a>
+              )
             ))}
           </div>
         ) : project.link ? (
           project.link.startsWith("/") ? (
-            // Internal link - use Link component, no external icon
-            <a
+            // Internal link - use Next.js Link for client-side navigation
+            <Link
               href={project.link}
               aria-label={`View ${project.title} dashboard`}
               className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent)]/80 transition-colors"
             >
               View Live Dashboard
-            </a>
+            </Link>
           ) : (
             <a
               href={project.link}
