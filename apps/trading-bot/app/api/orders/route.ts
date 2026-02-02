@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrders, createOrder, cancelOrder, cancelAllOrders, AlpacaCredentials, OrderRequest } from "@/lib/alpaca";
+import { validateSymbol, validateQuantity, validateSide, validateOrderType, validatePrice, sanitizeSymbol } from "@/lib/validation";
 
 function getCredentials(): AlpacaCredentials | null {
   const apiKey = process.env.ALPACA_API_KEY;
@@ -60,22 +61,49 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    // Validate required fields
-    if (!body.symbol || !body.qty || !body.side || !body.type) {
-      return NextResponse.json(
-        { error: "Missing required fields: symbol, qty, side, type" },
-        { status: 400 }
-      );
+    // Validate all inputs
+    const symbolValidation = validateSymbol(body.symbol);
+    if (!symbolValidation.valid) {
+      return NextResponse.json({ error: symbolValidation.error }, { status: 400 });
+    }
+
+    const qtyValidation = validateQuantity(body.qty);
+    if (!qtyValidation.valid) {
+      return NextResponse.json({ error: qtyValidation.error }, { status: 400 });
+    }
+
+    const sideValidation = validateSide(body.side);
+    if (!sideValidation.valid) {
+      return NextResponse.json({ error: sideValidation.error }, { status: 400 });
+    }
+
+    const typeValidation = validateOrderType(body.type);
+    if (!typeValidation.valid) {
+      return NextResponse.json({ error: typeValidation.error }, { status: 400 });
+    }
+
+    // Validate limit price for limit orders
+    const requiresLimitPrice = body.type === "limit" || body.type === "stop_limit";
+    const limitPriceValidation = validatePrice(body.limitPrice, requiresLimitPrice);
+    if (!limitPriceValidation.valid) {
+      return NextResponse.json({ error: limitPriceValidation.error }, { status: 400 });
+    }
+
+    // Validate stop price for stop orders
+    const requiresStopPrice = body.type === "stop" || body.type === "stop_limit";
+    const stopPriceValidation = validatePrice(body.stopPrice, requiresStopPrice);
+    if (!stopPriceValidation.valid) {
+      return NextResponse.json({ error: stopPriceValidation.error }, { status: 400 });
     }
 
     const orderRequest: OrderRequest = {
-      symbol: body.symbol.toUpperCase(),
-      qty: body.qty,
-      side: body.side,
-      type: body.type,
+      symbol: sanitizeSymbol(body.symbol),
+      qty: Number(body.qty),
+      side: body.side.toLowerCase(),
+      type: body.type.toLowerCase(),
       time_in_force: body.timeInForce || "day",
-      limit_price: body.limitPrice,
-      stop_price: body.stopPrice,
+      limit_price: body.limitPrice ? Number(body.limitPrice) : undefined,
+      stop_price: body.stopPrice ? Number(body.stopPrice) : undefined,
     };
 
     const order = await createOrder(credentials, orderRequest);

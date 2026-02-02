@@ -7,19 +7,10 @@ import ProjectAccordion from "@/components/ProjectAccordion";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
 import { getAllProjects } from "@/data/projects";
+import { skills } from "@/data/config";
 import { motion } from "framer-motion";
 
 export default function Home() {
-  const skills = [
-    "TypeScript",
-    "React",
-    "Next.js",
-    "Node.js",
-    "Python",
-    "Tailwind",
-    "Git",
-    "APIs",
-  ];
 
   const projects = getAllProjects();
 

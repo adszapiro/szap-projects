@@ -247,9 +247,12 @@ export default function Home() {
                 </label>
               </div>
             </div>
+            <label htmlFor="resume-input" className="sr-only">Your Resume Text</label>
             <textarea
+              id="resume-input"
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
+              aria-describedby="resume-char-count"
               placeholder="Paste your resume text here or upload a PDF...
 
 Example:
@@ -268,7 +271,7 @@ SKILLS
 JavaScript, React, Node.js, Python"
               className="w-full h-64 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none text-sm"
             />
-            <p className="text-xs text-gray-500 mt-2">
+            <p id="resume-char-count" className="text-xs text-gray-500 mt-2">
               {resumeText.length} characters
             </p>
           </div>
@@ -276,12 +279,14 @@ JavaScript, React, Node.js, Python"
           {/* Job Description Input */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5 text-blue-400" />
-              <h3 className="text-lg font-semibold text-white">Job Description</h3>
+              <FileText className="w-5 h-5 text-blue-400" aria-hidden="true" />
+              <label htmlFor="job-input" className="text-lg font-semibold text-white">Job Description</label>
             </div>
             <textarea
+              id="job-input"
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
+              aria-describedby="job-char-count"
               placeholder="Paste the job description here...
 
 Example:
@@ -300,7 +305,7 @@ Nice to have:
 • Experience with CI/CD pipelines"
               className="w-full h-64 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-sm"
             />
-            <p className="text-xs text-gray-500 mt-2">
+            <p id="job-char-count" className="text-xs text-gray-500 mt-2">
               {jobDescription.length} characters
             </p>
           </div>
@@ -310,9 +315,16 @@ Nice to have:
         <div className="flex flex-col items-center gap-4 mb-12">
           {/* Progress bar during analysis (Nielsen #1: Visibility of System Status) */}
           {isAnalyzing && (
-            <div className="w-full max-w-md mb-2">
+            <div 
+              className="w-full max-w-md mb-2"
+              role="progressbar"
+              aria-valuenow={analysisProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Resume analysis progress"
+            >
               <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>Analyzing with GPT-4...</span>
+                <span aria-live="polite">Analyzing with GPT-4...</span>
                 <span>{analysisProgress}%</span>
               </div>
               <div className="h-2 bg-gray-800 rounded-full overflow-hidden">

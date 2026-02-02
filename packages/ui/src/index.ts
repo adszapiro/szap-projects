@@ -9,6 +9,18 @@ export { ProgressBar, CircularProgress } from "./progress-bar";
 // Error Handling (Nielsen #9: Help Users Recognize, Diagnose, and Recover from Errors)
 export { ErrorBoundary, ErrorFallback, InlineError } from "./error-boundary";
 export { EmptyState, NoResultsState, ErrorState } from "./empty-state";
+export {
+  createApiError,
+  createErrorResponse,
+  parseError,
+  logError,
+  formatUserError,
+  isRetryable,
+  ERROR_STATUS_CODES,
+  ERROR_MESSAGES,
+  type ApiError,
+  type ErrorType,
+} from "./error-utils";
 
 // Feedback (Norman: Feedback)
 export { ToastProvider, useToast } from "./toast";

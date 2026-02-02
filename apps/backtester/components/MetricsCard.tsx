@@ -1,24 +1,26 @@
+import { memo, useMemo } from "react";
 import { PerformanceMetrics } from "@/lib/types";
 
 interface MetricsCardProps {
   metrics: PerformanceMetrics;
 }
 
-export default function MetricsCard({ metrics }: MetricsCardProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
 
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-  };
+const formatPercent = (value: number) => {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+};
 
-  const metricsData = [
+function MetricsCard({ metrics }: MetricsCardProps) {
+  // Memoize metrics data to avoid recalculating on every render
+  const metricsData = useMemo(() => [
     {
       label: "Total Return",
       value: formatCurrency(metrics.totalReturn),
@@ -61,7 +63,7 @@ export default function MetricsCard({ metrics }: MetricsCardProps) {
       isPositive: true,
       icon: "⏱️",
     },
-  ];
+  ], [metrics]);
 
   return (
     <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-6 shadow-xl">
@@ -101,3 +103,5 @@ export default function MetricsCard({ metrics }: MetricsCardProps) {
     </div>
   );
 }
+
+export default memo(MetricsCard);

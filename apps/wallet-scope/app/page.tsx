@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { 
   Wallet, 
   Search, 
@@ -84,6 +84,20 @@ export default function Home() {
 
   // Demo wallet address (Vitalik's public wallet)
   const DEMO_WALLET = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+
+  // Memoize chart data to avoid recalculating on every render
+  const chartData = useMemo(() => {
+    if (!result) return [];
+    const COLORS = ["#F7931A", "#26A17B", "#E84142", "#2775CA", "#8247E5"];
+    return [
+      { name: "ETH", value: result.ethUsdValue, color: "#627EEA" },
+      ...result.tokens.map((token, i) => ({
+        name: token.symbol,
+        value: token.usdValue,
+        color: COLORS[i % COLORS.length],
+      })),
+    ];
+  }, [result]);
 
   // Load recent searches from localStorage (Nielsen #6: Recognition over Recall)
   useEffect(() => {
@@ -250,31 +264,40 @@ export default function Home() {
         </div>
 
         {/* Search */}
-        <div className="max-w-2xl mx-auto mb-12">
+        <div className="max-w-2xl mx-auto mb-12" role="search">
+          <label htmlFor="wallet-address" className="sr-only">
+            Ethereum wallet address
+          </label>
           <div className="flex gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" aria-hidden="true" />
               <input
+                id="wallet-address"
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                 placeholder="Enter Ethereum wallet address (0x...)"
+                aria-describedby="wallet-input-hint"
                 className="w-full pl-12 pr-4 py-4 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none"
               />
             </div>
             <button
               onClick={handleAnalyze}
               disabled={isLoading}
+              aria-label={isLoading ? "Analyzing wallet..." : "Analyze wallet"}
               className="px-8 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 disabled:from-gray-700 disabled:to-gray-700 text-white font-semibold rounded-xl transition-all glow-orange"
             >
               {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
               ) : (
                 "Analyze"
               )}
             </button>
           </div>
+          <p id="wallet-input-hint" className="sr-only">
+            Enter a valid Ethereum wallet address starting with 0x, then press Enter or click Analyze
+          </p>
           
           {/* Example addresses */}
           <div className="mt-4 flex flex-wrap gap-2 justify-center">
@@ -543,14 +566,7 @@ export default function Home() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={[
-                          { name: "ETH", value: result.ethUsdValue, color: "#627EEA" },
-                          ...result.tokens.map((token, i) => ({
-                            name: token.symbol,
-                            value: token.usdValue,
-                            color: ["#F7931A", "#26A17B", "#E84142", "#2775CA", "#8247E5"][i % 5],
-                          })),
-                        ]}
+                        data={chartData}
                         cx="50%"
                         cy="50%"
                         innerRadius={50}
@@ -560,14 +576,7 @@ export default function Home() {
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                         labelLine={false}
                       >
-                        {[
-                          { name: "ETH", value: result.ethUsdValue, color: "#627EEA" },
-                          ...result.tokens.map((token, i) => ({
-                            name: token.symbol,
-                            value: token.usdValue,
-                            color: ["#F7931A", "#26A17B", "#E84142", "#2775CA", "#8247E5"][i % 5],
-                          })),
-                        ].map((entry, index) => (
+                        {chartData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -706,45 +715,6 @@ export default function Home() {
                 </table>
               </div>
             </div>
-
-            {/* Risk Factors */}
-            {result.riskFactors.length > 0 && (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                  Risk Analysis
-                </h3>
-                
-                <div className="space-y-4">
-                  {result.riskFactors.map((factor, i) => (
-                    <div
-                      key={i}
-                      className={`p-4 rounded-xl border ${
-                        factor.impact === "high"
-                          ? "bg-red-900/20 border-red-800"
-                          : factor.impact === "medium"
-                          ? "bg-yellow-900/20 border-yellow-800"
-                          : "bg-green-900/20 border-green-800"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-xs px-2 py-1 rounded font-medium uppercase ${
-                          factor.impact === "high"
-                            ? "bg-red-800 text-red-200"
-                            : factor.impact === "medium"
-                            ? "bg-yellow-800 text-yellow-200"
-                            : "bg-green-800 text-green-200"
-                        }`}>
-                          {factor.impact}
-                        </span>
-                        <span className="font-medium text-white">{factor.factor}</span>
-                      </div>
-                      <p className="text-sm text-gray-400">{factor.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* View on Etherscan */}
             <div className="text-center">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 import { createChart, IChartApi, CandlestickData, LineData, Time } from "lightweight-charts";
 import { OHLCV, Trade } from "@/lib/types";
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
@@ -12,16 +12,41 @@ interface ChartPanelProps {
   symbol: string;
 }
 
-export default function ChartPanel({ data, trades, loading, symbol }: ChartPanelProps) {
+// Memoized SMA calculation function
+function calculateSMA(data: OHLCV[], period: number): LineData[] {
+  const result: LineData[] = [];
+  
+  for (let i = period - 1; i < data.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      sum += data[j].close;
+    }
+    result.push({
+      time: data[i].date as Time,
+      value: sum / period,
+    });
+  }
+  
+  return result;
+}
+
+function ChartPanel({ data, trades, loading, symbol }: ChartPanelProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const [activeIndicators, setActiveIndicators] = useState<string[]>(["sma20", "sma50"]);
 
-  // Calculate stats
-  const latestPrice = data.length > 0 ? data[data.length - 1].close : 0;
-  const firstPrice = data.length > 0 ? data[0].close : 0;
-  const priceChange = latestPrice - firstPrice;
-  const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
+  // Memoize stats calculations
+  const { latestPrice, priceChange, priceChangePercent } = useMemo(() => {
+    const latest = data.length > 0 ? data[data.length - 1].close : 0;
+    const first = data.length > 0 ? data[0].close : 0;
+    const change = latest - first;
+    const changePercent = first > 0 ? (change / first) * 100 : 0;
+    return { latestPrice: latest, priceChange: change, priceChangePercent: changePercent };
+  }, [data]);
+
+  // Memoize SMA data to avoid recalculating on every render
+  const sma20Data = useMemo(() => calculateSMA(data, 20), [data]);
+  const sma50Data = useMemo(() => calculateSMA(data, 50), [data]);
 
   // Memoize chart creation to avoid recreating on every render
   const initChart = useCallback(() => {
@@ -114,24 +139,22 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    // Add SMA indicators if active
-    if (activeIndicators.includes("sma20")) {
+    // Add SMA indicators if active (use pre-computed memoized data)
+    if (activeIndicators.includes("sma20") && sma20Data.length > 0) {
       const sma20Series = chart.addLineSeries({
         color: "#eab308",
         lineWidth: 1,
         title: "SMA 20",
       });
-      const sma20Data = calculateSMA(data, 20);
       sma20Series.setData(sma20Data);
     }
 
-    if (activeIndicators.includes("sma50")) {
+    if (activeIndicators.includes("sma50") && sma50Data.length > 0) {
       const sma50Series = chart.addLineSeries({
         color: "#a855f7",
         lineWidth: 1,
         title: "SMA 50",
       });
-      const sma50Data = calculateSMA(data, 50);
       sma50Series.setData(sma50Data);
     }
 
@@ -151,7 +174,7 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
     chart.timeScale().fitContent();
 
     return chart;
-  }, [data, trades, activeIndicators]);
+  }, [data, trades, activeIndicators, sma20Data, sma50Data]);
 
   useEffect(() => {
     const chart = initChart();
@@ -284,20 +307,4 @@ export default function ChartPanel({ data, trades, loading, symbol }: ChartPanel
   );
 }
 
-// Helper function to calculate SMA
-function calculateSMA(data: OHLCV[], period: number): LineData[] {
-  const result: LineData[] = [];
-  
-  for (let i = period - 1; i < data.length; i++) {
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      sum += data[j].close;
-    }
-    result.push({
-      time: data[i].date as Time,
-      value: sum / period,
-    });
-  }
-  
-  return result;
-}
+export default memo(ChartPanel);

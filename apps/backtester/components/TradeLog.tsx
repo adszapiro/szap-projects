@@ -1,29 +1,30 @@
+import { memo, useMemo } from "react";
 import { Trade } from "@/lib/types";
 
 interface TradeLogProps {
   trades: Trade[];
 }
 
-export default function TradeLog({ trades }: TradeLogProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
-  // Calculate profit/loss for each trade pair
-  const tradesWithPnL = trades.map((trade, index) => {
+function TradeLog({ trades }: TradeLogProps) {
+  // Memoize profit/loss calculations
+  const tradesWithPnL = useMemo(() => trades.map((trade, index) => {
     let pnl: number | null = null;
     let pnlPercent: number | null = null;
 
@@ -36,7 +37,7 @@ export default function TradeLog({ trades }: TradeLogProps) {
     }
 
     return { ...trade, pnl, pnlPercent };
-  });
+  }), [trades]);
 
   return (
     <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-6 shadow-xl">
@@ -120,3 +121,5 @@ export default function TradeLog({ trades }: TradeLogProps) {
     </div>
   );
 }
+
+export default memo(TradeLog);

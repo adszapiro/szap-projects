@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { personalInfo } from "@/data/config";
 
 export default function Hero() {
   return (
@@ -12,7 +13,7 @@ export default function Hero() {
           transition={{ duration: 0.5 }}
           className="text-4xl md:text-5xl font-bold text-[var(--text)] mb-6 leading-tight"
         >
-          Alex Szapiro
+          {personalInfo.name}
         </motion.h1>
         
         <motion.p 
@@ -32,7 +33,7 @@ export default function Hero() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-lg text-[var(--text-muted)] mb-10"
         >
-          Economics @ University of Michigan
+          {personalInfo.education}
         </motion.p>
 
         <motion.div 
@@ -43,18 +44,21 @@ export default function Hero() {
         >
           <a
             href="#projects"
+            aria-label="View my projects"
             className="px-6 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-lg font-medium transition-colors"
           >
             View Projects
           </a>
           <a
             href="/resume"
+            aria-label="View my resume"
             className="px-6 py-3 border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)] transition-colors font-medium"
           >
             Resume
           </a>
           <a
             href="#contact"
+            aria-label="Contact me"
             className="px-6 py-3 border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)] transition-colors font-medium"
           >
             Contact
