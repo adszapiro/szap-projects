@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Send,
   Plus,
@@ -49,16 +49,25 @@ export default function Home() {
   const [history, setHistory] = useState<RequestHistory[]>([]);
   const [activeTab, setActiveTab] = useState<"headers" | "body">("headers");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const demoRan = useRef(false);
 
   // Load history from localStorage (Nielsen #6: Recognition over Recall)
   useEffect(() => {
     try {
       const saved = localStorage.getItem("api-tester-history");
       if (saved) {
-        setHistory(JSON.parse(saved));
+        const parsedHistory = JSON.parse(saved);
+        setHistory(parsedHistory);
+        // Not first visit if there's history
+        setIsFirstVisit(parsedHistory.length === 0);
+      } else {
+        // First visit - no history exists
+        setIsFirstVisit(true);
       }
     } catch (e) {
       console.error("Failed to load history", e);
+      setIsFirstVisit(true);
     }
   }, []);
 
@@ -174,6 +183,18 @@ export default function Home() {
     }
   };
 
+  // Auto-run demo request on first visit (Nielsen #8: Aesthetic and Minimalist Design + Show Value)
+  useEffect(() => {
+    if (isFirstVisit && !demoRan.current && !isLoading) {
+      demoRan.current = true;
+      // Small delay to let the UI render first
+      const timer = setTimeout(() => {
+        sendRequest();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFirstVisit, isLoading]);
+
   const addHeader = () => {
     setHeaders([...headers, { key: "", value: "", enabled: true }]);
   };
@@ -263,7 +284,7 @@ export default function Home() {
             Shortcuts
           </button>
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="block text-xs text-[#6c7086] hover:text-white transition-colors"
           >
             Back to Portfolio
@@ -464,8 +485,15 @@ export default function Home() {
                 </pre>
               )}
               {!response && !error && !isLoading && (
-                <div className="flex items-center justify-center h-full text-[#6c7086]">
-                  Send a request to see the response
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  {isFirstVisit && !demoRan.current ? (
+                    <>
+                      <div className="text-[#e94560] mb-2 text-lg font-medium">Welcome to API Tester!</div>
+                      <div className="text-[#6c7086]">Running a demo request...</div>
+                    </>
+                  ) : (
+                    <div className="text-[#6c7086]">Send a request to see the response</div>
+                  )}
                 </div>
               )}
               {isLoading && (

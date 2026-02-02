@@ -11,6 +11,17 @@ export interface Snippet {
 }
 
 const STORAGE_KEY = "snippet-vault-snippets";
+const INITIALIZED_KEY = "snippet-vault-initialized";
+
+export function isFirstVisit(): boolean {
+  if (typeof window === "undefined") return false;
+  return !localStorage.getItem(INITIALIZED_KEY);
+}
+
+export function markAsInitialized(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(INITIALIZED_KEY, "true");
+}
 
 export function getSnippets(): Snippet[] {
   if (typeof window === "undefined") return [];
@@ -65,10 +76,11 @@ export function searchSnippets(query: string): Snippet[] {
   );
 }
 
-// Sample snippets for demo
-export function initSampleSnippets(): void {
-  const existing = getSnippets();
-  if (existing.length > 0) return;
+// Sample snippets for demo - returns true if samples were loaded (first visit)
+export function initSampleSnippets(): boolean {
+  // Only load samples on first visit, tracked separately from snippet count
+  // This ensures samples don't reload if user deletes all snippets
+  if (!isFirstVisit()) return false;
 
   const samples: Omit<Snippet, "id" | "createdAt" | "updatedAt">[] = [
     {
@@ -137,4 +149,6 @@ export function useDebounce<T>(value: T, delay: number): T {
   ];
 
   samples.forEach(saveSnippet);
+  markAsInitialized();
+  return true;
 }

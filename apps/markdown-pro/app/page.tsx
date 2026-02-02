@@ -19,37 +19,58 @@ import {
 
 const DEFAULT_MARKDOWN = `# Welcome to MarkdownPro
 
-A **beautiful** markdown editor with *live preview*.
+Start typing here! Everything you write is **automatically saved** to your browser.
 
-## Features
+## Quick Start Guide
 
-- Real-time preview
-- Dark/light theme
-- Export to HTML
-- Local storage autosave
-- Multiple documents
+Try editing this text to see the live preview update instantly. Here's what you can do:
 
-## Code Example
+### Text Formatting
+
+- **Bold text** with \`**double asterisks**\`
+- *Italic text* with \`*single asterisks*\`
+- ~~Strikethrough~~ with \`~~tildes~~\`
+- \`inline code\` with backticks
+
+### Links & Images
+
+Create a link: [Visit my portfolio](https://alexszapiro.com)
+
+### Code Blocks
 
 \`\`\`javascript
-function greet(name) {
-  return \`Hello, \${name}!\`;
-}
+// Syntax-highlighted code blocks
+const greeting = "Hello, World!";
+console.log(greeting);
 \`\`\`
 
-## Table
+### Lists
 
-| Feature | Status |
-|---------|--------|
-| Editor | ✅ |
-| Preview | ✅ |
-| Export | ✅ |
+1. Numbered lists start with numbers
+2. Each item gets a number
+3. Simple and clean
 
-> "The best markdown editor you'll ever use."
+- Bullet points with dashes
+- Or asterisks work too
+- Great for quick notes
+
+### Tables
+
+| Shortcut | Action |
+|----------|--------|
+| ⌘ + S | Save document |
+| ⌘ + N | New document |
+| Esc | Close panels |
+
+### Blockquotes
+
+> Pro tip: Press the "?" key to see all keyboard shortcuts!
 
 ---
 
-Made with ❤️ by [Alex Szapiro](https://portfolio-adszapiro.vercel.app)
+**Ready to start?** Clear this text and begin writing, or save it as a new document using the save button above.
+
+Made with ❤️ by [Alex Szapiro](https://alexszapiro.com)
 `;
 
 interface Document {
@@ -395,7 +416,7 @@ ${marked(markdown)}
           >
             Shortcuts
           </button>
-          <a href="https://portfolio-adszapiro.vercel.app" className="hover:text-blue-500">
+          <a href="https://alexszapiro.com" className="hover:text-blue-500">
             Built by Alex Szapiro
           </a>
         </div>

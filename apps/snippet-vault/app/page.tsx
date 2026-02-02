@@ -100,8 +100,14 @@ export default function Home() {
   });
 
   useEffect(() => {
-    initSampleSnippets();
-    setSnippets(getSnippets());
+    const isFirstVisit = initSampleSnippets();
+    const loadedSnippets = getSnippets();
+    setSnippets(loadedSnippets);
+    
+    // Auto-select first snippet on first visit to provide immediate value
+    if (isFirstVisit && loadedSnippets.length > 0) {
+      setSelectedSnippet(loadedSnippets[0]);
+    }
   }, []);
 
   useEffect(() => {
@@ -243,7 +249,7 @@ export default function Home() {
             Shortcuts
           </button>
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="block text-xs text-[#6c7086] hover:text-white transition-colors text-center"
           >
             Back to Portfolio

@@ -10,6 +10,65 @@ const categoryConfig = {
   other: { bg: "bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-500/20" },
 };
 
+// Sample todos for first-time visitors to see the app in action
+const getSampleTodos = (): Todo[] => {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  
+  const formatDateForSample = (date: Date) => date.toISOString().split('T')[0];
+  
+  return [
+    {
+      id: "sample-1",
+      text: "Welcome! Try adding your own tasks above",
+      completed: false,
+      category: "personal",
+      due_date: formatDateForSample(today),
+      created_at: new Date().toISOString(),
+      source: "manual",
+    },
+    {
+      id: "sample-2",
+      text: "Review project proposal and send feedback",
+      completed: false,
+      category: "work",
+      due_date: formatDateForSample(tomorrow),
+      created_at: new Date().toISOString(),
+      source: "manual",
+    },
+    {
+      id: "sample-3",
+      text: "Pick up groceries for dinner",
+      completed: false,
+      category: "shopping",
+      due_date: formatDateForSample(today),
+      created_at: new Date().toISOString(),
+      source: "manual",
+    },
+    {
+      id: "sample-4",
+      text: "Schedule dentist appointment",
+      completed: true,
+      category: "personal",
+      due_date: null,
+      created_at: new Date().toISOString(),
+      source: "manual",
+    },
+    {
+      id: "sample-5",
+      text: "Prepare slides for team meeting",
+      completed: false,
+      category: "work",
+      due_date: formatDateForSample(nextWeek),
+      created_at: new Date().toISOString(),
+      source: "email",
+    },
+  ];
+};
+
 export default function TodoApp() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputText, setInputText] = useState("");
@@ -18,44 +77,92 @@ export default function TodoApp() {
   const [filter, setFilter] = useState<"all" | "active" | "completed" | "email">("all");
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "email">("all");
+  const [showingSamples, setShowingSamples] = useState(false);
 
   const fetchTodos = async () => {
-    const { data, error } = await supabase
-      .from("todos")
-      .select("*")
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("todos")
+        .select("*")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching todos:", error);
-    } else {
-      setTodos(data || []);
+      if (error) {
+        console.error("Error fetching todos:", error);
+        // On error (e.g., no Supabase configured), show sample todos
+        handleEmptyOrErrorState();
+      } else if (!data || data.length === 0) {
+        // No todos in database - check if first visit
+        handleEmptyOrErrorState();
+      } else {
+        setTodos(data);
+        setShowingSamples(false);
+        // Mark that user has real data
+        if (typeof window !== "undefined") {
+          localStorage.setItem("todo-app-has-data", "true");
+        }
+      }
+    } catch {
+      // Handle Supabase not configured or network error
+      handleEmptyOrErrorState();
     }
     setLoading(false);
+  };
+
+  const handleEmptyOrErrorState = () => {
+    // Check if this is a first-time visitor
+    if (typeof window !== "undefined") {
+      const hasVisited = localStorage.getItem("todo-app-visited");
+      const hasData = localStorage.getItem("todo-app-has-data");
+      
+      if (!hasVisited && !hasData) {
+        // First visit - show sample todos
+        setTodos(getSampleTodos());
+        setShowingSamples(true);
+        localStorage.setItem("todo-app-visited", "true");
+      } else {
+        setTodos([]);
+        setShowingSamples(false);
+      }
+    }
   };
 
   useEffect(() => {
     fetchTodos();
 
-    const channel = supabase
-      .channel("todos-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "todos" },
-        () => {
-          fetchTodos(); // Refetch on any change for simplicity
-        }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    
+    try {
+      channel = supabase
+        .channel("todos-changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "todos" },
+          () => {
+            fetchTodos(); // Refetch on any change for simplicity
+          }
+        )
+        .subscribe();
+    } catch {
+      // Supabase not configured - that's okay, we'll show sample data
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (inputText.trim() === "") return;
+
+    // Clear sample todos when user adds their first real todo
+    if (showingSamples) {
+      setShowingSamples(false);
+      setTodos([]);
+    }
 
     const { error } = await supabase.from("todos").insert({
       text: inputText.trim(),
@@ -69,10 +176,23 @@ export default function TodoApp() {
     } else {
       setInputText("");
       setDueDate("");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("todo-app-has-data", "true");
+      }
     }
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
+    // Handle sample todos (not in database)
+    if (id.startsWith("sample-")) {
+      setTodos((prev) =>
+        prev.map((todo) =>
+          todo.id === id ? { ...todo, completed: !completed } : todo
+        )
+      );
+      return;
+    }
+    
     const { error } = await supabase
       .from("todos")
       .update({ completed: !completed })
@@ -84,6 +204,12 @@ export default function TodoApp() {
   };
 
   const deleteTodo = async (id: string) => {
+    // Handle sample todos (not in database)
+    if (id.startsWith("sample-")) {
+      setTodos((prev) => prev.filter((todo) => todo.id !== id));
+      return;
+    }
+    
     // Optimistic update - remove from UI immediately
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
     
@@ -96,18 +222,29 @@ export default function TodoApp() {
   };
 
   const clearCompleted = async () => {
-    const completedIds = todos.filter(t => t.completed).map(t => t.id);
+    // Handle sample todos (not in database)
+    const sampleCompleted = todos.filter(t => t.completed && t.id.startsWith("sample-"));
+    const realCompleted = todos.filter(t => t.completed && !t.id.startsWith("sample-"));
+    
     setTodos((prev) => prev.filter((todo) => !todo.completed));
     
-    const { error } = await supabase
-      .from("todos")
-      .delete()
-      .eq("completed", true);
+    // Only call Supabase if there are real completed todos
+    if (realCompleted.length > 0) {
+      const { error } = await supabase
+        .from("todos")
+        .delete()
+        .eq("completed", true);
 
-    if (error) {
-      console.error("Error clearing completed:", error);
-      fetchTodos();
+      if (error) {
+        console.error("Error clearing completed:", error);
+        fetchTodos();
+      }
     }
+  };
+
+  const dismissSamples = () => {
+    setTodos([]);
+    setShowingSamples(false);
   };
 
   const filteredTodos = todos.filter((todo) => {
@@ -185,6 +322,30 @@ export default function TodoApp() {
             {activeTodoCount} active • {emailTodoCount} from email
           </p>
         </header>
+
+        {/* Sample Data Banner */}
+        {showingSamples && (
+          <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">👋</span>
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Welcome! These are sample tasks to show you how the app works.
+                </p>
+                <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                  Add your own tasks above, or{" "}
+                  <button
+                    onClick={dismissSamples}
+                    className="underline hover:no-underline font-medium"
+                  >
+                    dismiss these samples
+                  </button>
+                  .
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Todo Form */}
         <form onSubmit={addTodo} className="mb-8">
@@ -383,7 +544,7 @@ export default function TodoApp() {
         {/* Back to Portfolio */}
         <div className="text-center mt-12 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
           <a
-            href="https://portfolio-adszapiro.vercel.app"
+            href="https://alexszapiro.com"
             className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
