@@ -188,38 +188,49 @@ export async function runStockTournament(): Promise<TournamentResult> {
           const currentPrice = data.close[data.close.length - 1];
           const qty = Math.floor(maxPositionValue / currentPrice);
           
+          console.log(`🔄 [STOCK] Attempting BUY: ${symbol} qty=${qty} @ $${currentPrice.toFixed(2)} (maxPos=$${maxPositionValue.toFixed(0)})`);
+          
           if (qty > 0) {
-            const orderId = await placeOrder(symbol, "buy", qty);
-            tradeId = await saveTrade({
-              strategy_id: strategy.id,
-              symbol,
-              side: "buy",
-              qty,
-              reasoning: `[Tournament] ${signal.reason}`,
-              asset_class: "stock",
-            });
-            tradeExecuted = true;
-            tradesExecuted++;
+            try {
+              const result = await placeOrder({
+                symbol,
+                qty,
+                side: "buy",
+                strategy_id: strategy.id,
+                reasoning: `[Tournament] ${signal.reason}`,
+              });
+              tradeId = result.tradeId;
+              tradeExecuted = true;
+              tradesExecuted++;
+              console.log(`✅ [STOCK] BUY executed: ${symbol} orderId=${result.orderId}`);
+            } catch (error) {
+              console.error(`❌ [STOCK] BUY failed for ${symbol}:`, error);
+            }
+          } else {
+            console.log(`⚠️ [STOCK] BUY skipped: qty=${qty}`);
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
           const currentPrice = data.close[data.close.length - 1];
-          const orderId = await placeOrder(symbol, "sell", positionData.qty);
-          tradeId = await saveTrade({
-            strategy_id: strategy.id,
-            symbol,
-            side: "sell",
-            qty: positionData.qty,
-            price: currentPrice,
-            reasoning: `[Tournament] ${signal.reason}`,
-            asset_class: "stock",
-          });
-          tradeExecuted = true;
-          tradesExecuted++;
-          
-          // Update bandit with result
-          const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
-          const won = isWinningTrade(pnl);
-          await updateBandit(strategy.id, won, pnl);
+          try {
+            const result = await placeOrder({
+              symbol,
+              qty: positionData.qty,
+              side: "sell",
+              strategy_id: strategy.id,
+              reasoning: `[Tournament] ${signal.reason}`,
+            });
+            tradeId = result.tradeId;
+            tradeExecuted = true;
+            tradesExecuted++;
+            console.log(`✅ [STOCK] SELL executed: ${symbol} orderId=${result.orderId}`);
+            
+            // Update bandit with result
+            const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
+            const won = isWinningTrade(pnl);
+            await updateBandit(strategy.id, won, pnl);
+          } catch (error) {
+            console.error(`❌ [STOCK] SELL failed for ${symbol}:`, error);
+          }
         }
         
         results.push({
