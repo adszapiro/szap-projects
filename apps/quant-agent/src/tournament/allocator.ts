@@ -4,7 +4,7 @@
  */
 
 import { getCurrentWeights, getStrategyRankings } from "../bandit/thompson.js";
-import { getAccountValue } from "../executor.js";
+import { getAccount } from "../executor.js";
 import { getSimulatedAccountValue } from "../simulator.js";
 
 export interface AllocationConfig {
@@ -35,8 +35,8 @@ export async function getPositionSize(
   
   // Get account value
   const accountValue = assetClass === "crypto" 
-    ? getSimulatedAccountValue()
-    : await getAccountValue();
+    ? getSimulatedAccountValue().totalValue
+    : (await getAccount()).portfolio_value;
   
   // Get current allocation weight
   const weights = await getCurrentWeights();
@@ -64,8 +64,8 @@ export async function getAllAllocations(
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   const accountValue = assetClass === "crypto"
-    ? getSimulatedAccountValue()
-    : await getAccountValue();
+    ? getSimulatedAccountValue().totalValue
+    : (await getAccount()).portfolio_value;
   
   const availableCapital = accountValue * (1 - cfg.cashReserve);
   const weights = await getCurrentWeights();

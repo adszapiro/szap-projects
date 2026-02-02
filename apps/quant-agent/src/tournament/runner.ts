@@ -6,7 +6,7 @@
 import { getActiveStrategies, saveTrade, log, Strategy, AssetClass } from "../db.js";
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
-import { getBars, getCryptoBars, placeOrder, getPositions, getAccountValue } from "../executor.js";
+import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
 import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue, SIMULATED_CRYPTO_CAPITAL } from "../simulator.js";
 
 // Strategy execution helpers (copied from index.ts pattern)
@@ -134,7 +134,8 @@ export async function runStockTournament(): Promise<TournamentResult> {
   const positionMap = new Map(positions.map(p => [p.symbol, p]));
   
   // Get account value for position sizing
-  const accountValue = await getAccountValue();
+  const account = await getAccount();
+  const accountValue = account.portfolio_value;
   
   // Run each strategy
   for (const strategy of strategies) {
