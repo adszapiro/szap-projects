@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { FileText, Sparkles, Upload, ArrowRight, CheckCircle, AlertCircle, Loader2, RotateCcw, Zap, FileUp } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 
-// Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Suggestion {
@@ -25,7 +23,6 @@ interface AnalysisResult {
   summary: string;
 }
 
-// Sample data for quick testing (Nielsen #6: Recognition over Recall)
 const SAMPLE_RESUME = `ALEX SZAPIRO
 Software Developer | Ann Arbor, MI
 
@@ -62,20 +59,17 @@ Requirements:
 Nice to Have:
 • Experience with cloud platforms (AWS, GCP)
 • Open source contributions
-• Knowledge of CI/CD pipelines
-• Experience with testing frameworks`;
+• Knowledge of CI/CD pipelines`;
 
 export default function Home() {
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState(0);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle PDF file upload
   const handlePdfUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -103,32 +97,19 @@ export default function Home() {
       }
 
       setResumeText(fullText.trim());
-    } catch (err) {
-      console.error("PDF parsing error:", err);
+    } catch {
       setError("Failed to parse PDF. Please try pasting the text manually.");
     } finally {
       setIsPdfLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, []);
 
-  // Load sample data (Nielsen #6: Recognition over Recall)
   const loadSampleData = useCallback(() => {
     setResumeText(SAMPLE_RESUME);
     setJobDescription(SAMPLE_JOB);
     setError(null);
     setResult(null);
-  }, []);
-
-  // Clear all data (Nielsen #3: User Control and Freedom)
-  const clearAll = useCallback(() => {
-    setResumeText("");
-    setJobDescription("");
-    setError(null);
-    setResult(null);
-    setAnalysisProgress(0);
   }, []);
 
   const handleAnalyze = async () => {
@@ -140,12 +121,6 @@ export default function Home() {
     setIsAnalyzing(true);
     setError(null);
     setResult(null);
-    setAnalysisProgress(0);
-
-    // Simulate progress for better UX (Nielsen #1: Visibility of System Status)
-    const progressInterval = setInterval(() => {
-      setAnalysisProgress((prev) => Math.min(prev + 10, 90));
-    }, 500);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -154,68 +129,47 @@ export default function Home() {
         body: JSON.stringify({ resumeText, jobDescription }),
       });
 
-      clearInterval(progressInterval);
-      setAnalysisProgress(100);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Analysis failed. Please try again.");
+        throw new Error(errorData.error || "Analysis failed");
       }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred. Please check your connection and try again.");
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsAnalyzing(false);
-      setTimeout(() => setAnalysisProgress(0), 500);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-[#0a0a0a]/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">ResumeAI</h1>
-              <p className="text-xs text-gray-500">AI-Powered Resume Tailoring</p>
-            </div>
+      <header className="border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-black">ResumeAI</h1>
+            <p className="text-sm text-gray-500">AI-powered resume optimization</p>
           </div>
           <a
             href="https://alexszapiro.com"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-400 hover:text-black transition-colors"
           >
-            Back to Portfolio
+            ← Portfolio
           </a>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Tailor Your Resume with <span className="gradient-text">AI</span>
-          </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Paste your resume and a job description. Get specific, actionable suggestions to improve your match.
-          </p>
-        </div>
-
-        {/* Input Section */}
+      <main className="max-w-5xl mx-auto px-6 py-12">
+        {/* Inputs */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Resume Input */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Upload className="w-5 h-5 text-purple-400" />
-                <h3 className="text-lg font-semibold text-white">Your Resume</h3>
-              </div>
+          {/* Resume */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-medium uppercase tracking-wider text-gray-400">
+                Your Resume
+              </label>
               <div>
                 <input
                   ref={fileInputRef}
@@ -227,247 +181,113 @@ export default function Home() {
                 />
                 <label
                   htmlFor="pdf-upload"
-                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors ${
+                  className={`text-xs px-3 py-1.5 rounded-md cursor-pointer transition-colors ${
                     isPdfLoading
-                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                      : "bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
+                      ? "bg-gray-100 text-gray-400"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                 >
-                  {isPdfLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Parsing...
-                    </>
-                  ) : (
-                    <>
-                      <FileUp className="w-4 h-4" />
-                      Upload PDF
-                    </>
-                  )}
+                  {isPdfLoading ? "Parsing..." : "Upload PDF"}
                 </label>
               </div>
             </div>
-            <label htmlFor="resume-input" className="sr-only">Your Resume Text</label>
             <textarea
-              id="resume-input"
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
-              aria-describedby="resume-char-count"
-              placeholder="Paste your resume text here or upload a PDF...
-
-Example:
-ALEX SZAPIRO
-Software Developer
-
-EXPERIENCE
-Junior Developer - TechCorp (2024-Present)
-• Built React applications for internal tools
-• Collaborated with senior engineers on API design
-
-EDUCATION
-University of Michigan - Computer Science (2028)
-
-SKILLS
-JavaScript, React, Node.js, Python"
-              className="w-full h-64 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none text-sm"
+              placeholder="Paste your resume text here..."
+              className="w-full h-64 p-4 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:border-black focus:outline-none resize-none"
             />
-            <p id="resume-char-count" className="text-xs text-gray-500 mt-2">
-              {resumeText.length} characters
-            </p>
           </div>
 
-          {/* Job Description Input */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5 text-blue-400" aria-hidden="true" />
-              <label htmlFor="job-input" className="text-lg font-semibold text-white">Job Description</label>
-            </div>
+          {/* Job Description */}
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+              Job Description
+            </label>
             <textarea
-              id="job-input"
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
-              aria-describedby="job-char-count"
-              placeholder="Paste the job description here...
-
-Example:
-Software Engineer Intern - Summer 2025
-
-We're looking for a passionate developer to join our team.
-
-Requirements:
-• Experience with React and TypeScript
-• Familiarity with cloud services (AWS, GCP)
-• Strong problem-solving skills
-• Excellent communication
-
-Nice to have:
-• Open source contributions
-• Experience with CI/CD pipelines"
-              className="w-full h-64 bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-sm"
+              placeholder="Paste the job description here..."
+              className="w-full h-64 p-4 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:border-black focus:outline-none resize-none"
             />
-            <p id="job-char-count" className="text-xs text-gray-500 mt-2">
-              {jobDescription.length} characters
-            </p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col items-center gap-4 mb-12">
-          {/* Progress bar during analysis (Nielsen #1: Visibility of System Status) */}
-          {isAnalyzing && (
-            <div 
-              className="w-full max-w-md mb-2"
-              role="progressbar"
-              aria-valuenow={analysisProgress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Resume analysis progress"
-            >
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span aria-live="polite">Analyzing with GPT-4...</span>
-                <span>{analysisProgress}%</span>
-              </div>
-              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
-                  style={{ width: `${analysisProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap justify-center gap-3">
-            {/* Sample Data Button */}
-            <button
-              onClick={loadSampleData}
-              disabled={isAnalyzing}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg transition-colors text-sm"
-              aria-label="Load sample resume and job description"
-            >
-              <Zap className="w-4 h-4" />
-              Try Sample Data
-            </button>
-
-            {/* Analyze Button */}
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !resumeText.trim() || !jobDescription.trim()}
-              className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 glow"
-              aria-label={isAnalyzing ? "Analysis in progress" : "Analyze resume against job description"}
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Analyze & Get Suggestions
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
-
-            {/* Clear Button (Nielsen #3: User Control and Freedom) */}
-            {(resumeText || jobDescription || result) && (
-              <button
-                onClick={clearAll}
-                disabled={isAnalyzing}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-lg transition-colors text-sm"
-                aria-label="Clear all inputs and results"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Clear All
-              </button>
-            )}
-          </div>
+        {/* Actions */}
+        <div className="flex items-center justify-center gap-3 mb-12">
+          <button
+            onClick={loadSampleData}
+            disabled={isAnalyzing}
+            className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+          >
+            Load Sample
+          </button>
+          <button
+            onClick={handleAnalyze}
+            disabled={isAnalyzing || !resumeText.trim() || !jobDescription.trim()}
+            className="px-6 py-2.5 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {isAnalyzing ? "Analyzing..." : "Analyze Resume"}
+          </button>
         </div>
 
-        {/* Error with Recovery (Nielsen #9: Help Users Recover from Errors) */}
+        {/* Error */}
         {error && (
-          <div className="mb-8 p-4 bg-red-900/20 border border-red-800 rounded-xl">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-red-400 font-medium">Analysis Failed</p>
-                <p className="text-red-400/80 text-sm mt-1">{error}</p>
-              </div>
-              <button
-                onClick={handleAnalyze}
-                className="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-200 rounded-lg text-sm transition-colors"
-              >
-                Try Again
-              </button>
-            </div>
+          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
         {/* Results */}
         {result && (
           <div className="space-y-8">
-            {/* Score & Summary */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-8">
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                {/* Score */}
-                <div className="relative w-32 h-32 flex-shrink-0">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      fill="none"
-                      stroke="#1f2937"
-                      strokeWidth="8"
-                    />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      fill="none"
-                      stroke={result.score >= 70 ? "#22c55e" : result.score >= 50 ? "#eab308" : "#ef4444"}
-                      strokeWidth="8"
-                      strokeDasharray={`${(result.score / 100) * 352} 352`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-3xl font-bold text-white">{result.score}%</span>
-                  </div>
+            {/* Score */}
+            <div className="flex items-center gap-8 p-8 border border-gray-200 rounded-lg">
+              <div className="relative w-24 h-24 flex-shrink-0">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="48" cy="48" r="40" fill="none" stroke="#e5e5e5" strokeWidth="6" />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r="40"
+                    fill="none"
+                    stroke={result.score >= 70 ? "#22c55e" : result.score >= 50 ? "#f59e0b" : "#ef4444"}
+                    strokeWidth="6"
+                    strokeDasharray={`${(result.score / 100) * 251} 251`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-semibold text-black">{result.score}</span>
                 </div>
-
-                {/* Summary */}
-                <div className="flex-1 text-center md:text-left">
-                  <h3 className="text-2xl font-bold text-white mb-2">Match Score</h3>
-                  <p className="text-gray-400">{result.summary}</p>
-                </div>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-black mb-1">Match Score</h2>
+                <p className="text-gray-500 text-sm">{result.summary}</p>
               </div>
             </div>
 
             {/* Keywords */}
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold text-green-400 mb-4 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5" />
+              <div className="p-6 border border-gray-200 rounded-lg">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-green-600 mb-4">
                   Keywords Found ({result.keywords.found.length})
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {result.keywords.found.map((kw, i) => (
-                    <span key={i} className="px-3 py-1 bg-green-900/30 border border-green-800 text-green-400 rounded-full text-sm">
+                    <span key={i} className="px-3 py-1 bg-green-50 text-green-700 text-sm rounded-full">
                       {kw}
                     </span>
                   ))}
                 </div>
               </div>
-
-              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-                <h3 className="text-lg font-semibold text-yellow-400 mb-4 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5" />
+              <div className="p-6 border border-gray-200 rounded-lg">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-amber-600 mb-4">
                   Missing Keywords ({result.keywords.missing.length})
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {result.keywords.missing.map((kw, i) => (
-                    <span key={i} className="px-3 py-1 bg-yellow-900/30 border border-yellow-800 text-yellow-400 rounded-full text-sm">
+                    <span key={i} className="px-3 py-1 bg-amber-50 text-amber-700 text-sm rounded-full">
                       {kw}
                     </span>
                   ))}
@@ -476,40 +296,38 @@ Nice to have:
             </div>
 
             {/* Suggestions */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-              <h3 className="text-xl font-semibold text-white mb-6">Suggestions ({result.suggestions.length})</h3>
-              <div className="space-y-4">
-                {result.suggestions.map((suggestion, i) => (
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">
+                Suggestions ({result.suggestions.length})
+              </h3>
+              <div className="space-y-3">
+                {result.suggestions.map((s, i) => (
                   <div
                     key={i}
-                    className={`p-4 rounded-xl border ${
-                      suggestion.type === "improvement"
-                        ? "bg-blue-900/20 border-blue-800"
-                        : suggestion.type === "addition"
-                        ? "bg-green-900/20 border-green-800"
-                        : "bg-yellow-900/20 border-yellow-800"
+                    className={`p-4 rounded-lg border ${
+                      s.type === "improvement"
+                        ? "bg-blue-50 border-blue-200"
+                        : s.type === "addition"
+                        ? "bg-green-50 border-green-200"
+                        : "bg-amber-50 border-amber-200"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className={`text-xs px-2 py-1 rounded font-medium ${
-                        suggestion.type === "improvement"
-                          ? "bg-blue-800 text-blue-200"
-                          : suggestion.type === "addition"
-                          ? "bg-green-800 text-green-200"
-                          : "bg-yellow-800 text-yellow-200"
-                      }`}>
-                        {suggestion.type.toUpperCase()}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          s.type === "improvement"
+                            ? "bg-blue-100 text-blue-700"
+                            : s.type === "addition"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {s.type}
                       </span>
-                      <span className="text-xs text-gray-500">{suggestion.section}</span>
+                      <span className="text-xs text-gray-500">{s.section}</span>
                     </div>
-                    <p className="mt-3 text-white font-medium">{suggestion.suggestion}</p>
-                    <p className="mt-2 text-sm text-gray-400">{suggestion.reason}</p>
-                    {suggestion.original && (
-                      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
-                        <p className="text-xs text-gray-500 mb-1">Original:</p>
-                        <p className="text-sm text-gray-400 line-through">{suggestion.original}</p>
-                      </div>
-                    )}
+                    <p className="text-sm text-gray-800 font-medium">{s.suggestion}</p>
+                    <p className="text-xs text-gray-500 mt-1">{s.reason}</p>
                   </div>
                 ))}
               </div>
@@ -520,38 +338,23 @@ Nice to have:
         {/* Features */}
         {!result && (
           <div className="grid md:grid-cols-3 gap-6 mt-16">
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-purple-900/50 flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-purple-400" />
+            {[
+              { title: "AI Analysis", desc: "GPT-4 powered resume analysis" },
+              { title: "Keyword Matching", desc: "See what's missing from your resume" },
+              { title: "Actionable Tips", desc: "Specific suggestions to improve" },
+            ].map((f, i) => (
+              <div key={i} className="p-6 border border-gray-200 rounded-lg text-center">
+                <h3 className="font-medium text-black mb-1">{f.title}</h3>
+                <p className="text-sm text-gray-500">{f.desc}</p>
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">AI-Powered Analysis</h3>
-              <p className="text-gray-400 text-sm">GPT-4 analyzes your resume against the job requirements</p>
-            </div>
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-blue-900/50 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-blue-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Keyword Matching</h3>
-              <p className="text-gray-400 text-sm">See which keywords you have and which you&apos;re missing</p>
-            </div>
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-green-900/50 flex items-center justify-center">
-                <ArrowRight className="w-6 h-6 text-green-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Actionable Suggestions</h3>
-              <p className="text-gray-400 text-sm">Get specific improvements to boost your match score</p>
-            </div>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-20">
-        <div className="max-w-7xl mx-auto px-6 py-8 text-center text-gray-500 text-sm">
-          Built by Alex Szapiro | Part of the{" "}
-          <a href="https://alexszapiro.com" className="text-purple-400 hover:text-purple-300">
-            Portfolio
-          </a>
+      <footer className="border-t border-gray-200 mt-16">
+        <div className="max-w-5xl mx-auto px-6 py-6 text-center text-xs text-gray-400">
+          Built by Alex Szapiro
         </div>
       </footer>
     </div>

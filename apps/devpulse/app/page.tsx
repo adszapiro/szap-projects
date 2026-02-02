@@ -1,19 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Github,
-  Search,
-  GitFork,
-  Star,
-  Users,
-  Calendar,
-  Flame,
-  Code,
-  ExternalLink,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
 
 interface GitHubUser {
   login: string;
@@ -80,178 +67,137 @@ export default function Home() {
     }
   }, [username]);
 
-  // Auto-load default user on mount
   useEffect(() => {
     fetchData("adszapiro");
   }, []);
 
   const getContribColor = (level: number) => {
-    const colors = [
-      "bg-[#161b22]",
-      "bg-[#0e4429]",
-      "bg-[#006d32]",
-      "bg-[#26a641]",
-      "bg-[#39d353]",
-    ];
+    const colors = ["bg-gray-100", "bg-green-200", "bg-green-300", "bg-green-500", "bg-green-700"];
     return colors[level] || colors[0];
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1117]">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-[#30363d] bg-[#161b22]">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Github className="w-8 h-8 text-white" />
-            <div>
-              <h1 className="text-xl font-bold text-white">DevPulse</h1>
-              <p className="text-xs text-[#8b949e]">GitHub Activity Dashboard</p>
-            </div>
+      <header className="border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-black">DevPulse</h1>
+            <p className="text-sm text-gray-500">GitHub profile analyzer</p>
           </div>
           <a
             href="https://alexszapiro.com"
-            className="text-sm text-[#8b949e] hover:text-white transition-colors"
+            className="text-sm text-gray-400 hover:text-black transition-colors"
           >
-            Back to Portfolio
+            ← Portfolio
           </a>
         </div>
       </header>
 
-      {/* Main */}
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Search */}
-        <div className="max-w-md mx-auto mb-8">
+        <div className="max-w-md mx-auto mb-12">
+          <label className="block text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">
+            GitHub Username
+          </label>
           <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8b949e]" />
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetchData()}
-                placeholder="Enter GitHub username"
-                className="w-full pl-10 pr-4 py-3 bg-[#0d1117] border border-[#30363d] rounded-lg text-white placeholder-[#8b949e] focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff] outline-none"
-              />
-            </div>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchData()}
+              placeholder="username"
+              className="flex-1 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:border-black focus:outline-none"
+            />
             <button
               onClick={() => fetchData()}
               disabled={isLoading}
-              className="px-6 py-3 bg-[#238636] hover:bg-[#2ea043] disabled:bg-[#21262d] text-white font-medium rounded-lg transition-colors"
+              className="px-6 py-3 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 disabled:bg-gray-300 transition-colors"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Analyze"}
+              {isLoading ? "Loading..." : "Search"}
             </button>
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="max-w-md mx-auto mb-8 p-4 bg-[#490202] border border-[#f85149] rounded-lg flex items-center gap-3 text-[#f85149]">
-            <AlertCircle className="w-5 h-5" />
-            {error}
+          <div className="max-w-md mx-auto mb-8 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
-        {/* Dashboard */}
-        {data && (
-          <div className="space-y-6">
+        {/* Loading */}
+        {isLoading && (
+          <div className="text-center py-16">
+            <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm text-gray-500">Fetching profile data...</p>
+          </div>
+        )}
+
+        {/* Results */}
+        {data && !isLoading && (
+          <div className="space-y-8">
             {/* Profile Card */}
-            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6">
-              <div className="flex items-start gap-6">
-                <img
-                  src={data.user.avatar_url}
-                  alt={data.user.name}
-                  className="w-24 h-24 rounded-full border-2 border-[#30363d]"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="text-2xl font-bold text-white">{data.user.name}</h2>
-                    <a
-                      href={data.user.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#58a6ff] hover:underline flex items-center gap-1"
-                    >
-                      @{data.user.login}
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-                  <p className="text-[#8b949e] mb-4">{data.user.bio}</p>
-                  <div className="flex gap-6 text-sm">
-                    <div className="flex items-center gap-1 text-[#8b949e]">
-                      <Code className="w-4 h-4" />
-                      <span className="text-white font-medium">{data.user.public_repos}</span> repos
-                    </div>
-                    <div className="flex items-center gap-1 text-[#8b949e]">
-                      <Users className="w-4 h-4" />
-                      <span className="text-white font-medium">{data.user.followers}</span> followers
-                    </div>
-                    <div className="flex items-center gap-1 text-[#8b949e]">
-                      <Calendar className="w-4 h-4" />
-                      Joined {new Date(data.user.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
-                    </div>
-                  </div>
-                </div>
+            <div className="flex items-center gap-6 p-6 border border-gray-200 rounded-lg">
+              <img
+                src={data.user.avatar_url}
+                alt={data.user.name}
+                className="w-20 h-20 rounded-full"
+              />
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-black">{data.user.name}</h2>
+                <p className="text-gray-500 text-sm">@{data.user.login}</p>
+                {data.user.bio && <p className="text-gray-600 text-sm mt-2">{data.user.bio}</p>}
               </div>
+              <a
+                href={data.user.html_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-500 hover:text-black transition-colors"
+              >
+                View Profile →
+              </a>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-[#8b949e] mb-2">
-                  <Flame className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm">Current Streak</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{data.streak.current} days</p>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="p-4 border border-gray-200 rounded-lg text-center">
+                <p className="text-2xl font-semibold text-black">{data.user.public_repos}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Repos</p>
               </div>
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-[#8b949e] mb-2">
-                  <Flame className="w-4 h-4 text-yellow-500" />
-                  <span className="text-sm">Longest Streak</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{data.streak.longest} days</p>
+              <div className="p-4 border border-gray-200 rounded-lg text-center">
+                <p className="text-2xl font-semibold text-black">{data.user.followers}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Followers</p>
               </div>
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-[#8b949e] mb-2">
-                  <Github className="w-4 h-4 text-green-500" />
-                  <span className="text-sm">Total Contributions</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{data.totalContributions}</p>
+              <div className="p-4 border border-gray-200 rounded-lg text-center">
+                <p className="text-2xl font-semibold text-black">{data.user.following}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Following</p>
               </div>
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
-                <div className="flex items-center gap-2 text-[#8b949e] mb-2">
-                  <Star className="w-4 h-4 text-yellow-400" />
-                  <span className="text-sm">Total Stars</span>
-                </div>
-                <p className="text-3xl font-bold text-white">
-                  {data.repos.reduce((sum, r) => sum + r.stargazers_count, 0)}
-                </p>
+              <div className="p-4 border border-gray-200 rounded-lg text-center">
+                <p className="text-2xl font-semibold text-black">{data.streak.current}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Day Streak</p>
+              </div>
+              <div className="p-4 border border-gray-200 rounded-lg text-center">
+                <p className="text-2xl font-semibold text-black">{data.totalContributions}</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Contributions</p>
               </div>
             </div>
 
             {/* Contribution Graph */}
-            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Contribution Activity</h3>
-              <div className="overflow-x-auto">
-                <div className="flex gap-1" style={{ width: "max-content" }}>
-                  {Array.from({ length: 52 }).map((_, weekIdx) => (
-                    <div key={weekIdx} className="flex flex-col gap-1">
-                      {Array.from({ length: 7 }).map((_, dayIdx) => {
-                        const idx = weekIdx * 7 + dayIdx;
-                        const day = data.contributions[idx];
-                        if (!day) return null;
-                        return (
-                          <div
-                            key={dayIdx}
-                            className={`w-3 h-3 rounded-sm ${getContribColor(day.level)}`}
-                            title={`${day.date}: ${day.count} contributions`}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
+            <div className="p-6 border border-gray-200 rounded-lg">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">
+                Contribution Activity
+              </h3>
+              <div className="flex gap-1 overflow-x-auto pb-2">
+                {data.contributions.slice(-52 * 7).map((day, i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-sm ${getContribColor(day.level)}`}
+                    title={`${day.date}: ${day.count} contributions`}
+                  />
+                ))}
               </div>
-              <div className="flex items-center gap-2 mt-4 text-xs text-[#8b949e]">
+              <div className="flex items-center gap-2 mt-4 text-xs text-gray-400">
                 <span>Less</span>
                 {[0, 1, 2, 3, 4].map((level) => (
                   <div key={level} className={`w-3 h-3 rounded-sm ${getContribColor(level)}`} />
@@ -260,83 +206,85 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Languages & Repos */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Languages */}
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Top Languages</h3>
-                <div className="space-y-3">
-                  {data.languages.slice(0, 5).map((lang) => (
-                    <div key={lang.language} className="flex items-center gap-3">
-                      <div
+            {/* Languages */}
+            {data.languages.length > 0 && (
+              <div className="p-6 border border-gray-200 rounded-lg">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">
+                  Languages
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {data.languages.map((lang, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full"
+                    >
+                      <span
                         className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: lang.color }}
+                        style={{ backgroundColor: lang.color || "#6e7681" }}
                       />
-                      <span className="text-white flex-1">{lang.language}</span>
-                      <span className="text-[#8b949e]">{lang.count} repos</span>
+                      <span className="text-sm text-gray-700">{lang.language}</span>
+                      <span className="text-xs text-gray-400">{lang.count}</span>
                     </div>
                   ))}
                 </div>
               </div>
+            )}
 
-              {/* Recent Repos */}
-              <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Recent Repositories</h3>
-                <div className="space-y-3">
-                  {data.repos.slice(0, 5).map((repo) => (
-                    <a
-                      key={repo.name}
-                      href={repo.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block p-3 bg-[#0d1117] rounded-lg hover:bg-[#21262d] transition-colors"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Code className="w-4 h-4 text-[#58a6ff]" />
-                        <span className="text-[#58a6ff] font-medium">{repo.name}</span>
-                      </div>
-                      <p className="text-sm text-[#8b949e] line-clamp-1">{repo.description || "No description"}</p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-[#8b949e]">
-                        {repo.language && (
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-[#3178c6]" />
-                            {repo.language}
-                          </span>
-                        )}
+            {/* Top Repos */}
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">
+                Top Repositories
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {data.repos.slice(0, 6).map((repo) => (
+                  <a
+                    key={repo.name}
+                    href={repo.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                  >
+                    <h4 className="font-medium text-black mb-1">{repo.name}</h4>
+                    <p className="text-sm text-gray-500 line-clamp-2 mb-3">
+                      {repo.description || "No description"}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      {repo.language && (
                         <span className="flex items-center gap-1">
-                          <Star className="w-3 h-3" />
-                          {repo.stargazers_count}
+                          <span className="w-2 h-2 rounded-full bg-gray-400" />
+                          {repo.language}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <GitFork className="w-3 h-3" />
-                          {repo.forks_count}
-                        </span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
+                      )}
+                      <span>★ {repo.stargazers_count}</span>
+                      <span>⑂ {repo.forks_count}</span>
+                    </div>
+                  </a>
+                ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* Empty State */}
-        {!data && !isLoading && !error && (
-          <div className="text-center py-16">
-            <Github className="w-16 h-16 text-[#30363d] mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-white mb-2">Analyze any GitHub profile</h2>
-            <p className="text-[#8b949e]">Enter a username to see their contribution stats, streaks, and activity.</p>
+        {/* Features */}
+        {!data && !isLoading && (
+          <div className="grid md:grid-cols-3 gap-6 mt-16">
+            {[
+              { title: "Profile Stats", desc: "Repos, followers, and activity" },
+              { title: "Contribution Graph", desc: "Visual activity timeline" },
+              { title: "Language Breakdown", desc: "Most used languages" },
+            ].map((f, i) => (
+              <div key={i} className="p-6 border border-gray-200 rounded-lg text-center">
+                <h3 className="font-medium text-black mb-1">{f.title}</h3>
+                <p className="text-sm text-gray-500">{f.desc}</p>
+              </div>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#30363d] mt-16">
-        <div className="max-w-6xl mx-auto px-6 py-6 text-center text-[#8b949e] text-sm">
-          Built by Alex Szapiro |{" "}
-          <a href="https://alexszapiro.com" className="text-[#58a6ff] hover:underline">
-            Portfolio
-          </a>
+      <footer className="border-t border-gray-200 mt-16">
+        <div className="max-w-5xl mx-auto px-6 py-6 text-center text-xs text-gray-400">
+          Built by Alex Szapiro
         </div>
       </footer>
     </div>
