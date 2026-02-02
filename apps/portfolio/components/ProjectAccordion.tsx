@@ -26,7 +26,7 @@ export default function ProjectAccordion({ project }: ProjectAccordionProps) {
             <span className="text-[var(--text)] font-medium group-hover:text-[var(--accent)] transition-colors">
               {project.title}
             </span>
-            {project.status === "live" && project.link && (
+            {project.status === "live" && (project.link || project.links) && (
               <span 
                 className="w-2 h-2 bg-green-500 rounded-full" 
                 aria-label="Project is live"
@@ -64,7 +64,26 @@ export default function ProjectAccordion({ project }: ProjectAccordionProps) {
           ))}
         </div>
 
-        {project.link && (
+        {/* Multiple links (dropdown style) */}
+        {project.links && project.links.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {project.links.map((link) => (
+              <a
+                key={link.label}
+                href={link.url}
+                target={link.url.startsWith("http") ? "_blank" : undefined}
+                rel={link.url.startsWith("http") ? "noopener noreferrer" : undefined}
+                aria-label={`${link.label} for ${project.title}${link.url.startsWith("http") ? " (opens in new tab)" : ""}`}
+                className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--accent)] hover:text-white transition-colors border border-[var(--border)]"
+              >
+                {link.label}
+                {link.url.startsWith("http") && (
+                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                )}
+              </a>
+            ))}
+          </div>
+        ) : project.link ? (
           <a
             href={project.link}
             target="_blank"
@@ -75,7 +94,7 @@ export default function ProjectAccordion({ project }: ProjectAccordionProps) {
             View Project
             <ExternalLink className="w-3 h-3" aria-hidden="true" />
           </a>
-        )}
+        ) : null}
       </div>
     </div>
   );
