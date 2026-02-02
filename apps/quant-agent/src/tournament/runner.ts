@@ -3,7 +3,7 @@
  * Executes all strategies in parallel with weighted allocation from the bandit
  */
 
-import { getActiveStrategies, saveTrade, log, Strategy, AssetClass } from "../db.js";
+import { getActiveStrategies, saveTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot } from "../db.js";
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
@@ -205,6 +205,8 @@ export async function runStockTournament(): Promise<TournamentResult> {
               tradeExecuted = true;
               tradesExecuted++;
               console.log(`✅ [STOCK] BUY executed: ${symbol} orderId=${result.orderId}`);
+              // Track BUY trade (P&L determined on SELL)
+              await updateStrategyPerformance(strategy.id, null, 0);
             } catch (error) {
               console.error(`❌ [STOCK] BUY failed for ${symbol}:`, error);
             }
@@ -376,6 +378,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               tradeExecuted = true;
               tradesExecuted++;
               console.log(`✅ BUY executed: ${symbol} tradeId=${tradeId}`);
+              // Track BUY trade (P&L determined on SELL)
+              await updateStrategyPerformance(strategy.id, null, 0);
             } catch (error) {
               console.error(`❌ BUY failed for ${symbol}:`, error);
             }

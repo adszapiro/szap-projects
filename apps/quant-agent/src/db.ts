@@ -433,7 +433,7 @@ export async function initializeStrategyPerformance(
 
 export async function updateStrategyPerformance(
   strategyId: string,
-  won: boolean,
+  won: boolean | null,  // null = trade opened (BUY), true/false = trade closed (SELL)
   pnl: number
 ): Promise<void> {
   // Get current performance
@@ -450,8 +450,9 @@ export async function updateStrategyPerformance(
   }
 
   // Update bandit parameters (Thompson Sampling)
-  const newAlpha = won ? data.alpha + 1 : data.alpha;
-  const newBeta = won ? data.beta : data.beta + 1;
+  // Only update alpha/beta when we have a closed trade (won is not null)
+  const newAlpha = won === true ? data.alpha + 1 : data.alpha;
+  const newBeta = won === false ? data.beta + 1 : data.beta;
 
   const { error } = await getSupabase()
     .from("strategy_performance")
@@ -459,7 +460,7 @@ export async function updateStrategyPerformance(
       alpha: newAlpha,
       beta: newBeta,
       total_trades: data.total_trades + 1,
-      winning_trades: won ? data.winning_trades + 1 : data.winning_trades,
+      winning_trades: won === true ? data.winning_trades + 1 : data.winning_trades,
       total_pnl: data.total_pnl + pnl,
       updated_at: new Date().toISOString(),
     })
