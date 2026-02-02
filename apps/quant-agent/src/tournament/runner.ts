@@ -8,6 +8,7 @@ import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } fro
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
 import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue, SIMULATED_CRYPTO_CAPITAL } from "../simulator.js";
+import { analyzeAndLearnFromLoss, recordWin } from "./loss-learner.js";
 
 // Strategy execution helpers (copied from index.ts pattern)
 const STRATEGY_HELPERS = `
@@ -239,6 +240,21 @@ export async function runStockTournament(): Promise<TournamentResult> {
             const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
             const won = isWinningTrade(pnl);
             await updateBandit(strategy.id, won, pnl);
+            
+            // ACTIVE LEARNING: Analyze losses in real-time
+            if (!won && pnl < 0) {
+              await analyzeAndLearnFromLoss(
+                strategy.id,
+                symbol,
+                pnl,
+                positionData.avgEntryPrice,
+                currentPrice,
+                1,  // holding period estimate
+                signal
+              );
+            } else {
+              recordWin(strategy.id);
+            }
           } catch (error) {
             console.error(`❌ [STOCK] SELL failed for ${symbol}:`, error);
           }
@@ -393,6 +409,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
             console.log(`⚠️ BUY skipped: qty=${qty}, price=${currentPrice}`);
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
+          const entryPrice = positionData.avgEntryPrice;
           const orderResult = await placeSimulatedOrder({
             symbol,
             side: "sell",
@@ -409,6 +426,22 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const pnl = orderResult.pnl || 0;
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
+          
+          // ACTIVE LEARNING: Analyze losses in real-time
+          if (!won && pnl < 0) {
+            const exitPrice = currentPrice;
+            await analyzeAndLearnFromLoss(
+              strategy.id,
+              symbol,
+              pnl,
+              entryPrice,
+              exitPrice,
+              1,  // holding period estimate
+              signal
+            );
+          } else {
+            recordWin(strategy.id);
+          }
         }
         
         results.push({
