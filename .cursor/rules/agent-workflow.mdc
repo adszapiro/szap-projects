@@ -1,0 +1,112 @@
+---
+description: Core workflow principles for AI agent behavior
+globs: "**/*"
+alwaysApply: true
+---
+
+# Agent Workflow Principles
+
+## 1. Plan Mode Default
+
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately - don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+## 2. Subagent Strategy
+
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+- Launch multiple subagents in parallel when tasks are independent
+
+## 3. Self-Improvement Loop
+
+- After ANY correction from the user: learn from it
+- Write rules for yourself that prevent the same mistake
+- If a pattern keeps failing, create a Cursor rule in `.cursor/rules/`
+
+## 4. Verification Before Done
+
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+- For deployments: verify the live URL actually works
+
+## 5. Demand Elegance (Balanced)
+
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes - don't over-engineer
+- Challenge your own work before presenting it
+
+## 6. Autonomous Bug Fixing
+
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests - then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+## Task Management
+
+1. **Plan First**: Use todos for multi-step tasks
+2. **Verify Plans**: Check in before starting implementation on big changes
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Summarize what was done when complete
+
+## Core Principles
+
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+- **Don't Ask Unnecessary Questions**: If you can figure it out, do it.
+
+---
+
+# Project-Specific Rules (szap-projects)
+
+## Portfolio Updates
+
+EVERY new project MUST be added to the portfolio. See `new-project-checklist.mdc`.
+
+## Deployment
+
+- All apps deploy to Vercel
+- Portfolio: `alexszapiro.com`
+- Apps use subdomains: `backtester.alexszapiro.com`, `resume.alexszapiro.com`, etc.
+- After ANY change to an app, redeploy with `vercel --prod --yes`
+
+## Monorepo Structure
+
+```
+szap-projects/
+├── apps/           # All web applications
+├── packages/       # Shared packages (ui, config)
+├── tests/          # E2E tests (Playwright)
+└── .cursor/rules/  # These rules
+```
+
+## Tech Stack Consistency
+
+- Framework: Next.js 15+ with App Router
+- Styling: Tailwind CSS v4 (`@tailwindcss/postcss`)
+- Icons: Lucide React (no emojis in production UI)
+- Analytics: Vercel Analytics + Speed Insights on all apps
+- Testing: Vitest (unit), Playwright (E2E)
+
+## Git Workflow
+
+- Push frequently after verified changes
+- Meaningful commit messages describing the "why"
+- Never force push to main
+- GitHub Actions can't be pushed via OAuth (requires manual push or different auth)
+
+## Common Gotchas
+
+1. **Navigation links**: Use `/#section` not `#section` for cross-page nav
+2. **React versions**: Keep consistent across monorepo (currently 19.x)
+3. **Tailwind v4**: No `tailwind.config.ts`, use CSS variables in `globals.css`
+4. **Vercel rewrites**: Don't work for separate Next.js apps, use subdomains instead
