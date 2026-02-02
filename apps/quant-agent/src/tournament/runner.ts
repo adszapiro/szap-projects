@@ -144,9 +144,9 @@ export async function runStockTournament(): Promise<TournamentResult> {
     
     for (const symbol of strategy.symbols) {
       try {
-        // Get market data
-        const bars = await getBars(symbol, 300);
-        if (!bars || bars.length < 50) {
+        // Get market data (1Day bars, request 300 days)
+        const bars = await getBars(symbol, "1Day", 300);
+        if (!bars || !bars.close || bars.close.length < 50) {
           results.push({
             strategyId: strategy.id,
             strategyName: strategy.name,
@@ -158,14 +158,8 @@ export async function runStockTournament(): Promise<TournamentResult> {
           continue;
         }
         
-        // Prepare data
-        const data = {
-          open: bars.map(b => b.open),
-          high: bars.map(b => b.high),
-          low: bars.map(b => b.low),
-          close: bars.map(b => b.close),
-          volume: bars.map(b => b.volume),
-        };
+        // Data is already in correct format from getBars
+        const data = bars;
         
         // Get current position
         const position = positionMap.get(symbol);
@@ -191,7 +185,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
         let tradeId: string | undefined;
         
         if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData) {
-          const currentPrice = bars[bars.length - 1].close;
+          const currentPrice = data.close[data.close.length - 1];
           const qty = Math.floor(maxPositionValue / currentPrice);
           
           if (qty > 0) {
@@ -208,12 +202,14 @@ export async function runStockTournament(): Promise<TournamentResult> {
             tradesExecuted++;
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
+          const currentPrice = data.close[data.close.length - 1];
           const orderId = await placeOrder(symbol, "sell", positionData.qty);
           tradeId = await saveTrade({
             strategy_id: strategy.id,
             symbol,
             side: "sell",
             qty: positionData.qty,
+            price: currentPrice,
             reasoning: `[Tournament] ${signal.reason}`,
             asset_class: "stock",
           });
@@ -221,7 +217,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
           tradesExecuted++;
           
           // Update bandit with result
-          const pnl = (bars[bars.length - 1].close - positionData.avgEntryPrice) * positionData.qty;
+          const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
         }
@@ -306,9 +302,9 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
     
     for (const symbol of strategy.symbols) {
       try {
-        // Get market data
-        const bars = await getCryptoBars(symbol, 100);
-        if (!bars || bars.length < 20) {
+        // Get market data (1Day bars, 100 days)
+        const bars = await getCryptoBars(symbol, "1Day", 100);
+        if (!bars || !bars.close || bars.close.length < 20) {
           results.push({
             strategyId: strategy.id,
             strategyName: strategy.name,
@@ -320,14 +316,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           continue;
         }
         
-        // Prepare data
-        const data = {
-          open: bars.map(b => b.open),
-          high: bars.map(b => b.high),
-          low: bars.map(b => b.low),
-          close: bars.map(b => b.close),
-          volume: bars.map(b => b.volume || 0),
-        };
+        // Data is already in correct format from getCryptoBars
+        const data = bars;
         
         // Get current position
         const position = getSimulatedPosition(symbol);
@@ -353,7 +343,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
         let tradeId: string | undefined;
         
         if (signal.type === "buy" && signal.confidence >= CONFIDENCE_THRESHOLD && !positionData) {
-          const currentPrice = bars[bars.length - 1].close;
+          const currentPrice = data.close[data.close.length - 1];
           const qty = maxPositionValue / currentPrice;
           
           if (qty > 0 && currentPrice > 0) {
@@ -371,7 +361,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
             tradesExecuted++;
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
-          const currentPrice = bars[bars.length - 1].close;
+          const currentPrice = data.close[data.close.length - 1];
           await placeSimulatedOrder(symbol, "sell", positionData.qty, currentPrice, strategy.id, signal.reason);
           
           const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
