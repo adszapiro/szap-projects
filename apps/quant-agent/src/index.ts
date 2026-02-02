@@ -26,6 +26,13 @@ import {
   isCryptoSymbol,
   isCryptoTradingAvailable,
 } from "./executor.js";
+import {
+  placeSimulatedOrder,
+  calculateSimulatedPositionSize,
+  getSimulatedPosition,
+  getSimulatedAccountValue,
+  logSimulatedStatus,
+} from "./simulator.js";
 
 // Default crypto symbols to trade (can be fetched dynamically)
 const CRYPTO_SYMBOLS = [
@@ -197,7 +204,9 @@ async function runCryptoCycle(): Promise<void> {
   const assetClass: AssetClass = "crypto";
   
   try {
-    const tradingMode = isCryptoTradingAvailable() ? "TRADING" : "LEARNING_ONLY";
+    // Determine trading mode
+    const useSimulation = !isCryptoTradingAvailable();
+    const tradingMode = isCryptoTradingAvailable() ? "REAL_TRADING" : "SIMULATED_PAPER";
     await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString(), mode: tradingMode });
     
     // Check if agent is enabled
@@ -208,8 +217,22 @@ async function runCryptoCycle(): Promise<void> {
     
     // No market hours check for crypto - trades 24/7!
     
-    // Check daily loss guardrail (only if trading is available)
-    if (isCryptoTradingAvailable()) {
+    // Check daily loss guardrail
+    if (useSimulation) {
+      // Check simulated portfolio
+      const simAccount = await getSimulatedAccountValue();
+      const simPnlPercent = ((simAccount.totalValue - 50000) / 50000) * 100; // Compare to starting capital
+      const maxDailyLoss = parseFloat(process.env.AGENT_MAX_DAILY_LOSS_PERCENT || "5");
+      
+      if (simPnlPercent < -maxDailyLoss) {
+        await log("warning", "simulated_loss_limit_hit", { 
+          pnl_percent: simPnlPercent, 
+          max_loss: maxDailyLoss, 
+          mode: "SIMULATED" 
+        });
+        return;
+      }
+    } else {
       const account = await getAccount();
       const dailyPnl = account.equity - account.last_equity;
       const dailyPnlPercent = (dailyPnl / account.last_equity) * 100;
@@ -221,12 +244,15 @@ async function runCryptoCycle(): Promise<void> {
       }
     }
     
-    // Get current positions (only if trading is available)
+    // Get current positions
     let positions: any[] = [];
-    if (isCryptoTradingAvailable()) {
+    if (!useSimulation) {
       positions = await getPositions();
       const cryptoPositions = positions.filter(p => p.symbol.includes("/") || CRYPTO_SYMBOLS.some(cs => cs.replace("/", "") === p.symbol));
       await log("info", "crypto_positions_checked", { count: cryptoPositions.length, positions: cryptoPositions.map(p => p.symbol) });
+    } else {
+      // Log simulated positions status
+      await logSimulatedStatus();
     }
     
     // Get active crypto strategies
@@ -238,7 +264,7 @@ async function runCryptoCycle(): Promise<void> {
       return;
     }
     
-    // Execute each active strategy (will skip trades if not available)
+    // Execute each active strategy (uses simulation if Alpaca crypto not available)
     await executeStrategies(strategies, positions, assetClass);
     
     const cycleDuration = Date.now() - cycleStart;
@@ -272,15 +298,31 @@ async function executeStrategies(
         }
         
         // Check if we have a position (handle crypto symbol format)
-        const positionSymbol = isCryptoSymbol(symbol) ? symbol.replace("/", "") : symbol;
-        const position = positions.find(p => p.symbol === positionSymbol);
-        const positionInfo = position
-          ? {
+        // For crypto without Alpaca, check simulated positions
+        let positionInfo: { qty: number; avgEntryPrice: number; side: string } | null = null;
+        
+        if (isCryptoSymbol(symbol) && !isCryptoTradingAvailable()) {
+          // Use simulated position
+          const simPosition = getSimulatedPosition(symbol);
+          if (simPosition) {
+            positionInfo = {
+              qty: simPosition.qty,
+              avgEntryPrice: simPosition.avgEntryPrice,
+              side: simPosition.side,
+            };
+          }
+        } else {
+          // Use real Alpaca position
+          const positionSymbol = isCryptoSymbol(symbol) ? symbol.replace("/", "") : symbol;
+          const position = positions.find(p => p.symbol === positionSymbol);
+          if (position) {
+            positionInfo = {
               qty: parseFloat(position.qty),
               avgEntryPrice: parseFloat(position.avg_entry_price),
               side: position.side,
-            }
-          : null;
+            };
+          }
+        }
         
         // Execute strategy
         const signal = executeStrategy(strategy.code, data, positionInfo);
@@ -296,36 +338,90 @@ async function executeStrategies(
         // Act on signal
         if (signal.type !== "hold" && signal.confidence >= 0.7) {
           // Check if we can actually trade this asset
-          const canTrade = assetClass === "stock" || isCryptoTradingAvailable();
+          const canTradeReal = assetClass === "stock" || isCryptoTradingAvailable();
           
-          if (!canTrade) {
-            await log("info", "crypto_trade_skipped", {
+          if (assetClass === "crypto" && !canTradeReal) {
+            // Use SIMULATION MODE for crypto when Alpaca isn't available
+            await log("info", "crypto_using_simulation", {
               symbol,
               signal,
-              reason: "Alpaca crypto trading not available in your region. Strategy saved for learning.",
+              mode: "SIMULATED_PAPER_TRADING",
             });
-            continue;
-          }
-          
-          if (signal.type === "buy" && !positionInfo) {
-            const qty = await calculatePositionSize(symbol, 10);
-            if (qty > 0) {
+            
+            // Get simulated position
+            const simPosition = getSimulatedPosition(symbol);
+            
+            if (signal.type === "buy" && !simPosition) {
+              try {
+                const qty = await calculateSimulatedPositionSize(symbol, 10);
+                if (qty > 0) {
+                  const result = await placeSimulatedOrder({
+                    symbol,
+                    qty,
+                    side: "buy",
+                    strategy_id: strategy.id,
+                    reasoning: signal.reason,
+                  });
+                  await log("decision", "simulated_order_executed", {
+                    symbol,
+                    side: "buy",
+                    qty,
+                    price: result.price,
+                  });
+                }
+              } catch (error) {
+                await log("warning", "simulated_order_failed", {
+                  symbol,
+                  side: "buy",
+                  error: String(error),
+                });
+              }
+            } else if (signal.type === "sell" && simPosition) {
+              try {
+                const result = await placeSimulatedOrder({
+                  symbol,
+                  qty: simPosition.qty,
+                  side: "sell",
+                  strategy_id: strategy.id,
+                  reasoning: signal.reason,
+                });
+                await log("decision", "simulated_order_executed", {
+                  symbol,
+                  side: "sell",
+                  qty: simPosition.qty,
+                  price: result.price,
+                  pnl: result.pnl,
+                });
+              } catch (error) {
+                await log("warning", "simulated_order_failed", {
+                  symbol,
+                  side: "sell",
+                  error: String(error),
+                });
+              }
+            }
+          } else {
+            // Real trading (stocks or available crypto)
+            if (signal.type === "buy" && !positionInfo) {
+              const qty = await calculatePositionSize(symbol, 10);
+              if (qty > 0) {
+                await placeOrder({
+                  symbol,
+                  qty,
+                  side: "buy",
+                  strategy_id: strategy.id,
+                  reasoning: signal.reason,
+                });
+              }
+            } else if (signal.type === "sell" && positionInfo) {
               await placeOrder({
                 symbol,
-                qty,
-                side: "buy",
+                qty: positionInfo.qty,
+                side: "sell",
                 strategy_id: strategy.id,
                 reasoning: signal.reason,
               });
             }
-          } else if (signal.type === "sell" && positionInfo) {
-            await placeOrder({
-              symbol,
-              qty: positionInfo.qty,
-              side: "sell",
-              strategy_id: strategy.id,
-              reasoning: signal.reason,
-            });
           }
         }
       }

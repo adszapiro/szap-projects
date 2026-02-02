@@ -301,6 +301,22 @@ export async function getCryptoBars(
   return getCryptoBarsFromCoinGecko(symbol, limit);
 }
 
+// Rate limiting for CoinGecko (free tier: 10-30 calls/minute)
+let lastCoinGeckoCall = 0;
+const COINGECKO_RATE_LIMIT_MS = 2000; // 2 seconds between calls
+
+async function rateLimitedCoinGeckoFetch(url: string): Promise<Response> {
+  const now = Date.now();
+  const timeSinceLastCall = now - lastCoinGeckoCall;
+  
+  if (timeSinceLastCall < COINGECKO_RATE_LIMIT_MS) {
+    await new Promise(resolve => setTimeout(resolve, COINGECKO_RATE_LIMIT_MS - timeSinceLastCall));
+  }
+  
+  lastCoinGeckoCall = Date.now();
+  return fetch(url);
+}
+
 // Get crypto data from CoinGecko (free, no auth)
 async function getCryptoBarsFromCoinGecko(
   symbol: string,
@@ -312,18 +328,45 @@ async function getCryptoBarsFromCoinGecko(
   }
   
   const id = coinId || "bitcoin";
-  const url = `${COINGECKO_API_URL}/coins/${id}/ohlc?vs_currency=usd&days=${Math.min(days, 365)}`;
+  // CoinGecko OHLC only supports specific day values: 1, 7, 14, 30, 90, 180, 365, max
+  const allowedDays = [1, 7, 14, 30, 90, 180, 365];
+  const closestDays = allowedDays.reduce((prev, curr) => 
+    Math.abs(curr - days) < Math.abs(prev - days) ? curr : prev
+  );
+  const url = `${COINGECKO_API_URL}/coins/${id}/ohlc?vs_currency=usd&days=${closestDays}`;
   
-  const response = await fetch(url);
-  
-  if (!response.ok) {
-    throw new Error(`CoinGecko API error: ${response.status}`);
+  try {
+    const response = await rateLimitedCoinGeckoFetch(url);
+    
+    if (!response.ok) {
+      // Handle rate limiting specifically
+      if (response.status === 429) {
+        console.log("⚠️ CoinGecko rate limited, waiting 60 seconds...");
+        await new Promise(resolve => setTimeout(resolve, 60000));
+        const retryResponse = await rateLimitedCoinGeckoFetch(url);
+        if (!retryResponse.ok) {
+          throw new Error(`CoinGecko API error after retry: ${retryResponse.status}`);
+        }
+        const data = await retryResponse.json();
+        return parseOhlcData(data);
+      }
+      throw new Error(`CoinGecko API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return parseOhlcData(data);
+  } catch (error) {
+    console.error(`CoinGecko fetch error for ${symbol}:`, error);
+    // Return empty data on error to allow graceful degradation
+    return { open: [], high: [], low: [], close: [], volume: [] };
   }
-  
-  const data = await response.json();
-  
+}
+
+function parseOhlcData(data: number[][]): { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] } {
+  if (!Array.isArray(data) || data.length === 0) {
+    return { open: [], high: [], low: [], close: [], volume: [] };
+  }
   // CoinGecko OHLC format: [timestamp, open, high, low, close]
-  // Note: CoinGecko doesn't provide volume in OHLC endpoint
   return {
     open: data.map((d: number[]) => d[1]),
     high: data.map((d: number[]) => d[2]),
@@ -370,14 +413,28 @@ async function getCryptoPriceFromCoinGecko(symbol: string): Promise<number> {
   const coinId = CRYPTO_ID_MAP[symbol] || "bitcoin";
   const url = `${COINGECKO_API_URL}/simple/price?ids=${coinId}&vs_currencies=usd`;
   
-  const response = await fetch(url);
-  
-  if (!response.ok) {
-    throw new Error(`CoinGecko price API error: ${response.status}`);
+  try {
+    const response = await rateLimitedCoinGeckoFetch(url);
+    
+    if (!response.ok) {
+      if (response.status === 429) {
+        console.log("⚠️ CoinGecko price rate limited, waiting...");
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        const retryResponse = await rateLimitedCoinGeckoFetch(url);
+        if (retryResponse.ok) {
+          const data = await retryResponse.json();
+          return data[coinId]?.usd || 0;
+        }
+      }
+      throw new Error(`CoinGecko price API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data[coinId]?.usd || 0;
+  } catch (error) {
+    console.error(`CoinGecko price error for ${symbol}:`, error);
+    return 0; // Return 0 to indicate price unavailable
   }
-  
-  const data = await response.json();
-  return data[coinId]?.usd || 0;
 }
 
 // Get bars (auto-detect stock vs crypto)
