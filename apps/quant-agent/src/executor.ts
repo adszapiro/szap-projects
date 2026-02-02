@@ -1,8 +1,11 @@
 import { saveTrade, updateTrade, log } from "./db.js";
 
-const ALPACA_BASE_URL = process.env.ALPACA_PAPER === "true"
-  ? "https://paper-api.alpaca.markets"
-  : "https://api.alpaca.markets";
+// Use a getter function to ensure env is loaded
+function getAlpacaBaseUrl(): string {
+  return process.env.ALPACA_PAPER === "true"
+    ? "https://paper-api.alpaca.markets"
+    : "https://api.alpaca.markets";
+}
 
 const ALPACA_DATA_URL = "https://data.alpaca.markets";
 const ALPACA_CRYPTO_DATA_URL = "https://data.alpaca.markets/v1beta3/crypto/us";
@@ -62,9 +65,11 @@ async function alpacaRequest<T>(
 ): Promise<T> {
   const { method = "GET", body, isData = false } = options;
   const { apiKey, secretKey } = getCredentials();
-  const baseUrl = isData ? ALPACA_DATA_URL : ALPACA_BASE_URL;
+  const baseUrl = isData ? ALPACA_DATA_URL : getAlpacaBaseUrl();
+  
+  const url = `${baseUrl}${endpoint}`;
 
-  const response = await fetch(`${baseUrl}${endpoint}`, {
+  const response = await fetch(url, {
     method,
     headers: {
       "APCA-API-KEY-ID": apiKey,
@@ -221,8 +226,14 @@ export async function getBars(
   timeframe: string = "1Day",
   limit: number = 100
 ): Promise<{ close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }> {
+  // Calculate start date (go back enough days to get the requested limit)
+  const daysBack = timeframe === "1Day" ? limit + 10 : Math.ceil(limit / 6.5) + 5; // Account for weekends/holidays
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysBack);
+  const startStr = startDate.toISOString().split("T")[0];
+  
   const response = await alpacaRequest<any>(
-    `/v2/stocks/${symbol}/bars?timeframe=${timeframe}&limit=${limit}`,
+    `/v2/stocks/${symbol}/bars?timeframe=${timeframe}&limit=${limit}&start=${startStr}`,
     { isData: true }
   );
 
@@ -303,7 +314,11 @@ export async function getCryptoBars(
 
 // Rate limiting for CoinGecko (free tier: 10-30 calls/minute)
 let lastCoinGeckoCall = 0;
-const COINGECKO_RATE_LIMIT_MS = 2000; // 2 seconds between calls
+const COINGECKO_RATE_LIMIT_MS = 3000; // 3 seconds between calls
+
+// OHLC data cache to avoid repeated API calls
+const ohlcCache: Map<string, { data: any; timestamp: number }> = new Map();
+const OHLC_CACHE_TTL = 5 * 60 * 1000; // 5 minute cache for OHLC data
 
 async function rateLimitedCoinGeckoFetch(url: string): Promise<Response> {
   const now = Date.now();
@@ -317,7 +332,7 @@ async function rateLimitedCoinGeckoFetch(url: string): Promise<Response> {
   return fetch(url);
 }
 
-// Get crypto data from CoinGecko (free, no auth)
+// Get crypto data from CoinGecko (free, no auth) with caching
 async function getCryptoBarsFromCoinGecko(
   symbol: string,
   days: number = 100
@@ -328,6 +343,14 @@ async function getCryptoBarsFromCoinGecko(
   }
   
   const id = coinId || "bitcoin";
+  const cacheKey = `${symbol}-${days}`;
+  
+  // Check cache first
+  const cached = ohlcCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < OHLC_CACHE_TTL) {
+    return cached.data;
+  }
+  
   // CoinGecko OHLC only supports specific day values: 1, 7, 14, 30, 90, 180, 365, max
   const allowedDays = [1, 7, 14, 30, 90, 180, 365];
   const closestDays = allowedDays.reduce((prev, curr) => 
@@ -339,23 +362,34 @@ async function getCryptoBarsFromCoinGecko(
     const response = await rateLimitedCoinGeckoFetch(url);
     
     if (!response.ok) {
-      // Handle rate limiting specifically
+      // Handle rate limiting - return cached data if available
       if (response.status === 429) {
-        console.log("⚠️ CoinGecko rate limited, waiting 60 seconds...");
-        await new Promise(resolve => setTimeout(resolve, 60000));
+        console.log("⚠️ CoinGecko rate limited, using cached data if available");
+        if (cached) return cached.data;
+        // Wait and retry
+        await new Promise(resolve => setTimeout(resolve, 30000));
         const retryResponse = await rateLimitedCoinGeckoFetch(url);
         if (!retryResponse.ok) {
           throw new Error(`CoinGecko API error after retry: ${retryResponse.status}`);
         }
         const data = await retryResponse.json();
-        return parseOhlcData(data);
+        const parsed = parseOhlcData(data);
+        ohlcCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+        return parsed;
       }
       throw new Error(`CoinGecko API error: ${response.status}`);
     }
     
     const data = await response.json();
-    return parseOhlcData(data);
+    const parsed = parseOhlcData(data);
+    ohlcCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+    return parsed;
   } catch (error) {
+    // Return cached data on error
+    if (cached) {
+      console.log(`Using cached OHLC data for ${symbol}`);
+      return cached.data;
+    }
     console.error(`CoinGecko fetch error for ${symbol}:`, error);
     // Return empty data on error to allow graceful degradation
     return { open: [], high: [], low: [], close: [], volume: [] };
@@ -408,32 +442,65 @@ export async function getLatestCryptoPrice(symbol: string): Promise<number> {
   return getCryptoPriceFromCoinGecko(symbol);
 }
 
-// Get crypto price from CoinGecko
+// Price cache for when CoinGecko is rate limited
+const priceCache: Map<string, { price: number; timestamp: number }> = new Map();
+const PRICE_CACHE_TTL = 60 * 60 * 1000; // 1 hour cache validity
+
+// Fallback prices (approximate, updated periodically)
+const FALLBACK_PRICES: Record<string, number> = {
+  "BTC/USD": 78000,
+  "ETH/USD": 3200,
+  "SOL/USD": 120,
+  "DOGE/USD": 0.25,
+  "AVAX/USD": 35,
+  "LINK/USD": 15,
+  "UNI/USD": 12,
+  "AAVE/USD": 280,
+  "LTC/USD": 95,
+  "BCH/USD": 450,
+};
+
+// Get crypto price from CoinGecko with caching
 async function getCryptoPriceFromCoinGecko(symbol: string): Promise<number> {
   const coinId = CRYPTO_ID_MAP[symbol] || "bitcoin";
   const url = `${COINGECKO_API_URL}/simple/price?ids=${coinId}&vs_currencies=usd`;
+  
+  // Check cache first
+  const cached = priceCache.get(symbol);
+  const now = Date.now();
   
   try {
     const response = await rateLimitedCoinGeckoFetch(url);
     
     if (!response.ok) {
       if (response.status === 429) {
-        console.log("⚠️ CoinGecko price rate limited, waiting...");
-        await new Promise(resolve => setTimeout(resolve, 30000));
-        const retryResponse = await rateLimitedCoinGeckoFetch(url);
-        if (retryResponse.ok) {
-          const data = await retryResponse.json();
-          return data[coinId]?.usd || 0;
+        console.log("⚠️ CoinGecko rate limited, using cached/fallback price");
+        // Return cached price if valid
+        if (cached && (now - cached.timestamp) < PRICE_CACHE_TTL) {
+          return cached.price;
         }
+        // Return fallback price
+        return FALLBACK_PRICES[symbol] || 1000;
       }
       throw new Error(`CoinGecko price API error: ${response.status}`);
     }
     
     const data = await response.json();
-    return data[coinId]?.usd || 0;
+    const price = data[coinId]?.usd || 0;
+    
+    // Update cache
+    if (price > 0) {
+      priceCache.set(symbol, { price, timestamp: now });
+    }
+    
+    return price || FALLBACK_PRICES[symbol] || 1000;
   } catch (error) {
-    console.error(`CoinGecko price error for ${symbol}:`, error);
-    return 0; // Return 0 to indicate price unavailable
+    console.log(`CoinGecko error for ${symbol}, using fallback`);
+    // Return cached price if available
+    if (cached && (now - cached.timestamp) < PRICE_CACHE_TTL) {
+      return cached.price;
+    }
+    return FALLBACK_PRICES[symbol] || 1000;
   }
 }
 

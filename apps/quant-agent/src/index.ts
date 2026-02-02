@@ -371,8 +371,8 @@ async function executeStrategies(
           signal,
         });
         
-        // Act on signal
-        if (signal.type !== "hold" && signal.confidence >= 0.7) {
+        // Act on signal - lowered threshold to 0.5 for more active trading
+        if (signal.type !== "hold" && signal.confidence >= 0.5) {
           // Check if we can actually trade this asset
           const canTradeReal = assetClass === "stock" || isCryptoTradingAvailable();
           
@@ -389,7 +389,8 @@ async function executeStrategies(
             
             if (signal.type === "buy" && !simPosition) {
               try {
-                const qty = await calculateSimulatedPositionSize(symbol, 10);
+                // 15% position size for more active trading
+                const qty = await calculateSimulatedPositionSize(symbol, 15);
                 if (qty > 0) {
                   const result = await placeSimulatedOrder({
                     symbol,
@@ -667,8 +668,8 @@ async function main(): Promise<void> {
     timezone: "America/New_York",
   });
   
-  // CRYPTO: Every 15 minutes, 24/7 (crypto never sleeps!)
-  cron.schedule("*/15 * * * *", async () => {
+  // CRYPTO: Every 5 minutes, 24/7 (crypto never sleeps!) - More aggressive
+  cron.schedule("*/5 * * * *", async () => {
     console.log(`\n🪙 [CRYPTO] Scheduled cycle at ${new Date().toISOString()}`);
     await runCryptoCycle();
   });
@@ -689,7 +690,7 @@ async function main(): Promise<void> {
   
   console.log("\n📅 Cron schedules configured:");
   console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
-  console.log("   🪙 CRYPTO: Every 15 min, 24/7");
+  console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");
   console.log("\n🤖 Agent is running. Press Ctrl+C to stop.");
