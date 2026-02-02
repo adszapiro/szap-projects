@@ -12,6 +12,7 @@ import {
   saveDailySnapshot,
   log,
   AssetClass,
+  initializeStrategyPerformance,
 } from "./db.js";
 import {
   getAccount,
@@ -38,6 +39,14 @@ import {
   clearSuccessfulStrategy,
   getHealthStatus,
 } from "./healer.js";
+
+// Tournament system imports
+import { runStockTournament, runCryptoTournament, printLeaderboard } from "./tournament/runner.js";
+import { runLearningCycle, generateReport } from "./tournament/learner.js";
+import { getBanditStats, sampleAllocation } from "./bandit/thompson.js";
+
+// Tournament mode flag
+const TOURNAMENT_MODE = process.env.TOURNAMENT_MODE !== "false"; // Default: enabled
 
 // Default crypto symbols to trade (can be fetched dynamically)
 const CRYPTO_SYMBOLS = [
@@ -167,7 +176,7 @@ async function runStockCycle(): Promise<void> {
   const assetClass: AssetClass = "stock";
   
   try {
-    await log("info", "stock_cycle_started", { timestamp: new Date().toISOString() });
+    await log("info", "stock_cycle_started", { timestamp: new Date().toISOString(), tournament_mode: TOURNAMENT_MODE });
     
     // Check if agent is enabled
     if (process.env.AGENT_ENABLED !== "true") {
@@ -199,6 +208,20 @@ async function runStockCycle(): Promise<void> {
       return;
     }
     
+    // TOURNAMENT MODE: Use bandit-weighted execution
+    if (TOURNAMENT_MODE) {
+      const result = await runStockTournament();
+      const cycleDuration = Date.now() - cycleStart;
+      await log("info", "stock_tournament_completed", { 
+        duration_ms: cycleDuration,
+        strategies_run: result.strategiesRun,
+        signals: result.signalsGenerated,
+        trades: result.tradesExecuted,
+      });
+      return;
+    }
+    
+    // LEGACY MODE: Original execution
     // Get current positions
     const positions = await getPositions();
     const stockPositions = positions.filter(p => !p.symbol.includes("/"));
@@ -235,7 +258,7 @@ async function runCryptoCycle(): Promise<void> {
     // Determine trading mode
     const useSimulation = !isCryptoTradingAvailable();
     const tradingMode = isCryptoTradingAvailable() ? "REAL_TRADING" : "SIMULATED_PAPER";
-    await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString(), mode: tradingMode });
+    await log("info", "crypto_cycle_started", { timestamp: new Date().toISOString(), mode: tradingMode, tournament_mode: TOURNAMENT_MODE });
     
     // Check if agent is enabled
     if (process.env.AGENT_ENABLED !== "true") {
@@ -272,6 +295,21 @@ async function runCryptoCycle(): Promise<void> {
       }
     }
     
+    // TOURNAMENT MODE: Use bandit-weighted execution
+    if (TOURNAMENT_MODE) {
+      const result = await runCryptoTournament();
+      const cycleDuration = Date.now() - cycleStart;
+      await log("info", "crypto_tournament_completed", { 
+        duration_ms: cycleDuration,
+        mode: tradingMode,
+        strategies_run: result.strategiesRun,
+        signals: result.signalsGenerated,
+        trades: result.tradesExecuted,
+      });
+      return;
+    }
+    
+    // LEGACY MODE: Original execution
     // Get current positions
     let positions: any[] = [];
     if (!useSimulation) {
@@ -627,6 +665,7 @@ async function main(): Promise<void> {
   console.log("🤖 Quant Agent Starting...");
   console.log(`Mode: ${process.env.ALPACA_PAPER === "true" ? "PAPER TRADING" : "LIVE TRADING"}`);
   console.log(`Agent Enabled: ${process.env.AGENT_ENABLED}`);
+  console.log(`Tournament Mode: ${TOURNAMENT_MODE ? "ENABLED" : "DISABLED"}`);
   console.log(`Trading: STOCKS + CRYPTO (24/7)`);
   
   // Validate environment
@@ -649,12 +688,35 @@ async function main(): Promise<void> {
   console.log(`📈 Stock symbols: ${STOCK_SYMBOLS.join(", ")}`);
   console.log(`🪙 Crypto symbols: ${CRYPTO_SYMBOLS.slice(0, 5).join(", ")}... (${CRYPTO_SYMBOLS.length} total)`);
   
+  // Initialize tournament system
+  if (TOURNAMENT_MODE) {
+    console.log("\n🏆 TOURNAMENT MODE ACTIVE");
+    console.log("   Strategies compete for capital allocation");
+    console.log("   Thompson Sampling bandit learns from results");
+    
+    // Initialize performance tracking for existing strategies
+    const allStrategies = await getActiveStrategies();
+    for (const strategy of allStrategies) {
+      await initializeStrategyPerformance(strategy.id, 1 / allStrategies.length);
+    }
+    console.log(`   Initialized ${allStrategies.length} strategies for tournament`);
+    
+    // Sample initial allocation
+    const allocations = await sampleAllocation();
+    console.log(`   Initial allocations sampled for ${allocations.size} strategies`);
+  }
+  
   // Run initial cycles
   console.log("\n🚀 Running initial stock cycle...");
   await runStockCycle();
   
   console.log("\n🚀 Running initial crypto cycle...");
   await runCryptoCycle();
+  
+  // Print initial leaderboard if in tournament mode
+  if (TOURNAMENT_MODE) {
+    await printLeaderboard();
+  }
   
   // =====================
   // SCHEDULE CRON JOBS
@@ -678,6 +740,13 @@ async function main(): Promise<void> {
   cron.schedule("30 16 * * 1-5", async () => {
     console.log(`\n📊 [STOCKS] End-of-day analysis at ${new Date().toISOString()}`);
     await runEndOfDayAnalysis("stock");
+    
+    // Run learning cycle and print report in tournament mode
+    if (TOURNAMENT_MODE) {
+      await runLearningCycle();
+      const report = await generateReport();
+      console.log(report);
+    }
   }, {
     timezone: "America/New_York",
   });
@@ -686,13 +755,30 @@ async function main(): Promise<void> {
   cron.schedule("0 0 * * *", async () => {
     console.log(`\n📊 [CRYPTO] Daily analysis at ${new Date().toISOString()}`);
     await runEndOfDayAnalysis("crypto");
+    
+    // Run learning cycle for crypto
+    if (TOURNAMENT_MODE) {
+      await runLearningCycle();
+      await printLeaderboard();
+    }
   });
+  
+  // Tournament learning cycle: Every hour (to update bandit more frequently)
+  if (TOURNAMENT_MODE) {
+    cron.schedule("0 * * * *", async () => {
+      console.log(`\n🎓 [TOURNAMENT] Learning cycle at ${new Date().toISOString()}`);
+      await runLearningCycle();
+    });
+  }
   
   console.log("\n📅 Cron schedules configured:");
   console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
   console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");
+  if (TOURNAMENT_MODE) {
+    console.log("   🏆 Tournament Learning: Every hour");
+  }
   console.log("\n🤖 Agent is running. Press Ctrl+C to stop.");
 }
 

@@ -9,10 +9,15 @@ import {
   getActiveStrategies,
   getRecentLogs,
   getAgentStatus,
+  getResearchPapers,
+  getStrategiesWithPerformance,
+  getTournamentStats,
   DailySnapshot,
   AgentTrade,
   Strategy,
   AgentLog,
+  ResearchPaper,
+  StrategyWithPerformance,
 } from "@/lib/supabase";
 
 export default function QuantDashboard() {
@@ -20,23 +25,35 @@ export default function QuantDashboard() {
   const [trades, setTrades] = useState<AgentTrade[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [logs, setLogs] = useState<AgentLog[]>([]);
+  const [papers, setPapers] = useState<ResearchPaper[]>([]);
+  const [leaderboard, setLeaderboard] = useState<StrategyWithPerformance[]>([]);
+  const [tournamentStats, setTournamentStats] = useState<{
+    totalStrategies: number;
+    totalPapers: number;
+    averageWinRate: number;
+    topPerformer: string | null;
+    totalTrades: number;
+  } | null>(null);
   const [agentStatus, setAgentStatus] = useState<{
     isRunning: boolean;
     lastActivity: string | null;
   }>({ isRunning: false, lastActivity: null });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState<"overview" | "trades" | "logs">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tournament" | "trades" | "logs">("overview");
 
   const fetchData = useCallback(async () => {
     try {
-      const [snapshotsData, tradesData, strategiesData, logsData, status] =
+      const [snapshotsData, tradesData, strategiesData, logsData, status, papersData, leaderboardData, statsData] =
         await Promise.all([
           getDailySnapshots(30),
           getRecentTrades(50),
           getActiveStrategies(),
           getRecentLogs(100),
           getAgentStatus(),
+          getResearchPapers(),
+          getStrategiesWithPerformance(),
+          getTournamentStats(),
         ]);
 
       setSnapshots(snapshotsData);
@@ -44,6 +61,9 @@ export default function QuantDashboard() {
       setStrategies(strategiesData);
       setLogs(logsData);
       setAgentStatus(status);
+      setPapers(papersData);
+      setLeaderboard(leaderboardData);
+      setTournamentStats(statsData);
       setLastRefresh(new Date());
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -174,7 +194,7 @@ export default function QuantDashboard() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {(["overview", "trades", "logs"] as const).map((tab) => (
+          {(["overview", "tournament", "trades", "logs"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -184,7 +204,7 @@ export default function QuantDashboard() {
                   : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "tournament" ? "Tournament 🏆" : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
           <div className="ml-auto flex items-center gap-2 py-2">
@@ -302,6 +322,148 @@ export default function QuantDashboard() {
             </div>
           )}
 
+          {activeTab === "tournament" && (
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Strategy Leaderboard */}
+              <div>
+                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                  Strategy Leaderboard
+                </h2>
+                {leaderboard.length === 0 ? (
+                  <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
+                    No strategies in tournament yet.
+                  </p>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strategy</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Win Rate</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Allocation</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">P&L</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {leaderboard.slice(0, 10).map((strategy) => (
+                          <tr key={strategy.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <span className={`text-sm font-medium ${
+                                strategy.rank === 1 ? "text-yellow-600" :
+                                strategy.rank === 2 ? "text-gray-500" :
+                                strategy.rank === 3 ? "text-orange-600" : "text-gray-400"
+                              }`}>
+                                {strategy.rank === 1 ? "🥇" : strategy.rank === 2 ? "🥈" : strategy.rank === 3 ? "🥉" : `#${strategy.rank}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-black truncate max-w-[200px]">{strategy.name}</div>
+                              <div className="text-xs text-gray-400">{strategy.asset_class}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`font-medium ${
+                                (strategy.expectedWinRate || 0) >= 0.55 ? "text-green-600" :
+                                (strategy.expectedWinRate || 0) <= 0.45 ? "text-red-600" : "text-gray-600"
+                              }`}>
+                                {((strategy.expectedWinRate || 0.5) * 100).toFixed(1)}%
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-600">
+                              {((strategy.performance?.current_weight || 0) * 100).toFixed(1)}%
+                            </td>
+                            <td className={`px-4 py-3 text-right font-medium ${
+                              (strategy.performance?.total_pnl || 0) >= 0 ? "text-green-600" : "text-red-600"
+                            }`}>
+                              {formatCurrency(strategy.performance?.total_pnl || 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Tournament Stats */}
+                {tournamentStats && (
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-xs font-medium text-gray-500 uppercase mb-3">Tournament Stats</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-400">Total Strategies</p>
+                        <p className="font-medium text-black">{tournamentStats.totalStrategies}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400">Total Trades</p>
+                        <p className="font-medium text-black">{tournamentStats.totalTrades}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400">Avg Win Rate</p>
+                        <p className="font-medium text-black">{(tournamentStats.averageWinRate * 100).toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400">Research Papers</p>
+                        <p className="font-medium text-black">{tournamentStats.totalPapers}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Research Papers Library */}
+              <div>
+                <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+                  Research Paper Library
+                </h2>
+                {papers.length === 0 ? (
+                  <p className="text-gray-400 text-sm py-8 text-center border border-dashed border-gray-200 rounded-lg">
+                    No research papers added yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-auto">
+                    {papers.map((paper) => (
+                      <div
+                        key={paper.id}
+                        className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-medium text-black text-sm">{paper.title}</h3>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              paper.status === "active"
+                                ? "bg-green-50 text-green-600"
+                                : paper.status === "extracted"
+                                ? "bg-blue-50 text-blue-600"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {paper.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {paper.authors?.join(", ")} ({paper.year}) • {paper.source}
+                        </p>
+                        {paper.key_insights && paper.key_insights.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-400 mb-1">Key Insights:</p>
+                            <ul className="text-xs text-gray-600 space-y-0.5">
+                              {paper.key_insights.slice(0, 2).map((insight, i) => (
+                                <li key={i}>• {insight}</li>
+                              ))}
+                              {paper.key_insights.length > 2 && (
+                                <li className="text-gray-400">+{paper.key_insights.length - 2} more...</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === "trades" && (
             <div>
               <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
@@ -404,7 +566,7 @@ export default function QuantDashboard() {
         {/* Footer */}
         <footer className="mt-16 pt-8 border-t border-gray-200 text-center">
           <p className="text-xs text-gray-400">
-            Paper trading simulation using real market data. Auto-refreshes every 15 seconds.
+            Paper trading simulation using real market data. Tournament mode with Thompson Sampling bandit learns from results. Auto-refreshes every 15 seconds.
           </p>
         </footer>
       </main>

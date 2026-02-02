@@ -24,7 +24,36 @@ export interface Strategy {
   status: string;
   asset_class: AssetClass;
   symbols: string[];
+  paper_id?: string;
   created_at: string;
+}
+
+export interface ResearchPaper {
+  id: string;
+  title: string;
+  authors: string[];
+  year: number;
+  source: string;
+  pdf_url?: string;
+  pdf_storage_path?: string;
+  abstract?: string;
+  key_insights: string[];
+  status: "pending" | "extracted" | "active";
+  created_at: string;
+}
+
+export interface StrategyPerformance {
+  id: string;
+  strategy_id: string;
+  alpha: number;       // Beta distribution param (successes)
+  beta: number;        // Beta distribution param (failures)
+  total_trades: number;
+  winning_trades: number;
+  total_pnl: number;
+  sharpe_ratio?: number;
+  max_drawdown?: number;
+  current_weight: number;
+  updated_at: string;
 }
 
 export interface BacktestResult {
@@ -276,6 +305,200 @@ export async function log(
   // Also console log
   const prefix = { info: "ℹ️", warning: "⚠️", error: "❌", decision: "🎯" }[level];
   console.log(`${prefix} [${action}]`, details ? JSON.stringify(details) : "");
+}
+
+// ============================================
+// RESEARCH PAPERS
+// ============================================
+
+export async function savePaper(paper: {
+  title: string;
+  authors?: string[];
+  year?: number;
+  source?: string;
+  pdf_url?: string;
+  pdf_storage_path?: string;
+  abstract?: string;
+  key_insights?: string[];
+}): Promise<string> {
+  const { data, error } = await getSupabase()
+    .from("research_papers")
+    .insert({
+      ...paper,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return data.id;
+}
+
+export async function updatePaperStatus(id: string, status: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("research_papers")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function getPaper(id: string): Promise<ResearchPaper | null> {
+  const { data, error } = await getSupabase()
+    .from("research_papers")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) return null;
+  return data;
+}
+
+export async function getAllPapers(): Promise<ResearchPaper[]> {
+  const { data, error } = await getSupabase()
+    .from("research_papers")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getActivePapers(): Promise<ResearchPaper[]> {
+  const { data, error } = await getSupabase()
+    .from("research_papers")
+    .select("*")
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getStrategiesByPaper(paperId: string): Promise<Strategy[]> {
+  const { data, error } = await getSupabase()
+    .from("strategies")
+    .select("*")
+    .eq("paper_id", paperId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// ============================================
+// STRATEGY PERFORMANCE (Bandit)
+// ============================================
+
+export async function getStrategyPerformance(strategyId: string): Promise<StrategyPerformance | null> {
+  const { data, error } = await getSupabase()
+    .from("strategy_performance")
+    .select("*")
+    .eq("strategy_id", strategyId)
+    .single();
+
+  if (error) return null;
+  return data;
+}
+
+export async function getAllStrategyPerformances(): Promise<StrategyPerformance[]> {
+  const { data, error } = await getSupabase()
+    .from("strategy_performance")
+    .select("*")
+    .order("current_weight", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function initializeStrategyPerformance(
+  strategyId: string,
+  initialWeight: number = 0.1
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("strategy_performance")
+    .upsert({
+      strategy_id: strategyId,
+      alpha: 1,
+      beta: 1,
+      total_trades: 0,
+      winning_trades: 0,
+      total_pnl: 0,
+      current_weight: initialWeight,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "strategy_id" });
+
+  if (error) throw error;
+}
+
+export async function updateStrategyPerformance(
+  strategyId: string,
+  won: boolean,
+  pnl: number
+): Promise<void> {
+  // Get current performance
+  const { data, error: fetchError } = await getSupabase()
+    .from("strategy_performance")
+    .select("*")
+    .eq("strategy_id", strategyId)
+    .single();
+
+  if (fetchError || !data) {
+    // Initialize if doesn't exist
+    await initializeStrategyPerformance(strategyId);
+    return updateStrategyPerformance(strategyId, won, pnl);
+  }
+
+  // Update bandit parameters (Thompson Sampling)
+  const newAlpha = won ? data.alpha + 1 : data.alpha;
+  const newBeta = won ? data.beta : data.beta + 1;
+
+  const { error } = await getSupabase()
+    .from("strategy_performance")
+    .update({
+      alpha: newAlpha,
+      beta: newBeta,
+      total_trades: data.total_trades + 1,
+      winning_trades: won ? data.winning_trades + 1 : data.winning_trades,
+      total_pnl: data.total_pnl + pnl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("strategy_id", strategyId);
+
+  if (error) throw error;
+}
+
+export async function updateStrategyWeights(
+  weights: Map<string, number>
+): Promise<void> {
+  for (const [strategyId, weight] of weights) {
+    const { error } = await getSupabase()
+      .from("strategy_performance")
+      .update({
+        current_weight: weight,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("strategy_id", strategyId);
+
+    if (error) {
+      console.error(`Failed to update weight for ${strategyId}:`, error.message);
+    }
+  }
+}
+
+export async function getTradesByStrategy(
+  strategyId: string,
+  limit: number = 100
+): Promise<any[]> {
+  const { data, error } = await getSupabase()
+    .from("agent_trades")
+    .select("*")
+    .eq("strategy_id", strategyId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
 }
 
 // Daily Snapshots
