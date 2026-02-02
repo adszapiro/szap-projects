@@ -6,9 +6,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ExtractedStrategy, PaperMetadata } from "./types.js";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Lazy initialization to ensure env vars are loaded
+let anthropic: Anthropic | null = null;
+
+function getClient(): Anthropic {
+  if (!anthropic) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY not set");
+    }
+    anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+  }
+  return anthropic;
+}
 
 const EXTRACTION_PROMPT = `You are a quantitative finance researcher. Analyze this research paper and extract implementable trading strategies.
 
@@ -58,7 +69,7 @@ export async function extractStrategiesFromText(
     ? `Paper: "${metadata.title}" by ${metadata.authors?.join(", ")} (${metadata.year})\n\n`
     : "";
 
-  const response = await anthropic.messages.create({
+  const response = await getClient().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 8000,
     messages: [
@@ -115,7 +126,7 @@ Generate strategies that implement these ideas. Follow the exact JSON format wit
 
 ${EXTRACTION_PROMPT}`;
 
-  const response = await anthropic.messages.create({
+  const response = await getClient().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 8000,
     messages: [{ role: "user", content: prompt }],
@@ -180,7 +191,7 @@ export async function improveStrategyCode(
   code: string,
   feedback: string
 ): Promise<string> {
-  const response = await anthropic.messages.create({
+  const response = await getClient().messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 4000,
     messages: [
