@@ -313,10 +313,10 @@ export default function TodoApp() {
         <header className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full mb-4">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-xs font-medium text-green-600 dark:text-green-400">Synced with Amanda's emails</span>
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">Email Integration Active</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 dark:from-white dark:via-blue-200 dark:to-white bg-clip-text text-transparent mb-2">
-            Alex's Tasks
+            Task Manager
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
             {activeTodoCount} active • {emailTodoCount} from email
@@ -447,7 +447,7 @@ export default function TodoApp() {
                   : filter === "active"
                   ? "All caught up! Great job!"
                   : sourceFilter === "email"
-                  ? "No email tasks - check for new emails from Amanda"
+                  ? "No email tasks found"
                   : "No tasks yet. Add one above!"}
               </p>
             </div>
@@ -503,7 +503,7 @@ export default function TodoApp() {
                       )}
                       {todo.source === "email" && (
                         <span className="inline-flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 font-medium">
-                          📧 Amanda
+                          📧 Email
                         </span>
                       )}
                     </div>

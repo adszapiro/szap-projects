@@ -23,9 +23,10 @@ export default function About() {
           className="text-[var(--text-secondary)] space-y-5 leading-relaxed"
         >
           <p className="text-lg">
-            I&apos;m a student at the <span className="text-[var(--text)]">University of Michigan</span> studying 
-            Economics with a focus on Real Estate, while building software through the 
-            School of Information. Expected graduation: 2028.
+            I&apos;m a student at the <span className="text-[var(--text)]">University of Michigan</span> pursuing 
+            a B.A. in Economics with a Minor in Real Estate. I&apos;m self-taught in software 
+            engineering and passionate about building tools at the intersection of 
+            finance and technology. Expected graduation: 2028.
           </p>
           
           <p className="text-lg">

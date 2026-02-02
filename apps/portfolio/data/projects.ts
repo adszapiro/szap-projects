@@ -17,7 +17,7 @@ export const projects: Project[] = [
   // FEATURED TIER
   {
     title: "Algo Trading Backtester",
-    description: "Professional-grade backtesting platform with TradingView-style charts, custom strategy editor, and multi-asset support. Built to validate trading strategies before risking real capital.",
+    description: "Professional-grade backtesting platform supporting 500+ stocks and 50+ crypto pairs. Features TradingView-style charts, custom JavaScript strategy editor, and multi-asset comparison with risk metrics.",
     tech: "Next.js, TypeScript, Lightweight Charts, Monaco Editor",
     link: "https://backtester.alexszapiro.com",
     status: "live",
@@ -26,7 +26,7 @@ export const projects: Project[] = [
   },
   {
     title: "AI Quant Agent",
-    description: "Autonomous trading agent that combines Claude and OpenAI to debate strategies, learn from historical trades, and execute paper trades via Alpaca. Features multi-model consensus for decision making.",
+    description: "Dual-model AI trading agent using GPT-4 and Claude in a debate system for strategy generation. Executes paper trades via Alpaca with risk management (5% daily loss limit) and Supabase logging.",
     tech: "Node.js, TypeScript, OpenAI, Anthropic, Supabase",
     link: "https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent",
     status: "live",
@@ -35,8 +35,8 @@ export const projects: Project[] = [
   },
   {
     title: "ResumeAI",
-    description: "AI-powered resume optimization. Analyzes your resume against job descriptions, identifies missing keywords, and provides specific suggestions to improve your match score.",
-    tech: "Next.js, TypeScript, OpenAI GPT-4",
+    description: "GPT-4 powered resume analyzer with PDF upload support. Provides match scores, identifies missing keywords, and generates actionable suggestions for tailoring resumes to specific job descriptions.",
+    tech: "Next.js, TypeScript, OpenAI GPT-4, PDF.js",
     link: "https://resume.alexszapiro.com",
     status: "live",
     tier: "featured",
@@ -44,27 +44,29 @@ export const projects: Project[] = [
   },
   {
     title: "WalletScope",
-    description: "On-chain wallet analyzer for Ethereum. Enter any address to see token holdings, portfolio diversification, and risk scoring based on concentration and volatility.",
-    tech: "Next.js, TypeScript, Ethereum RPC, CoinGecko",
+    description: "Ethereum wallet analyzer with real-time balance fetching, portfolio distribution charts, and risk scoring. Analyzes concentration, volatility, and diversification for any public address.",
+    tech: "Next.js, TypeScript, Ethereum RPC, CoinGecko, Recharts",
     link: "https://wallet.alexszapiro.com",
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
   },
   
-  // STANDARD TIER
+  // STANDARD TIER - Trading & Finance
   {
     title: "Paper Trading Bot",
-    description: "Live paper trading dashboard connected to Alpaca. Monitor positions, execute trades, and track performance.",
+    description: "Real-time paper trading dashboard with Alpaca integration. View account balance, positions, orders, and execute market/limit trades with demo mode for showcasing.",
     tech: "Next.js, TypeScript, Alpaca API",
     link: "https://trading.alexszapiro.com",
     status: "live",
     tier: "standard",
     repo: "https://github.com/adszapiro/szap-projects",
   },
+  
+  // STANDARD TIER - Developer Tools
   {
     title: "DevPulse",
-    description: "GitHub activity dashboard. Visualize contributions, streaks, and top languages for any profile.",
+    description: "GitHub profile analyzer with contribution graphs, streak tracking, and language breakdown. Visualize any developer's activity at a glance.",
     tech: "Next.js, GitHub API, Recharts",
     link: "https://devpulse.alexszapiro.com",
     status: "live",
@@ -73,7 +75,7 @@ export const projects: Project[] = [
   },
   {
     title: "API Tester",
-    description: "Postman-like tool for testing REST APIs in your browser.",
+    description: "Browser-based REST API testing tool with request history, multiple HTTP methods, and response formatting.",
     tech: "Next.js, TypeScript, Tailwind",
     link: "https://api.alexszapiro.com",
     status: "live",
@@ -82,7 +84,7 @@ export const projects: Project[] = [
   },
   {
     title: "SnippetVault",
-    description: "Code snippet manager with syntax highlighting and search.",
+    description: "Code snippet manager with syntax highlighting, tagging, and search. Save and organize reusable code blocks.",
     tech: "Next.js, TypeScript, Prism",
     link: "https://snippets.alexszapiro.com",
     status: "live",
@@ -91,7 +93,7 @@ export const projects: Project[] = [
   },
   {
     title: "MarkdownPro",
-    description: "Live markdown editor with split-view preview and export.",
+    description: "Markdown editor with live preview, multiple view modes, document management, and export to HTML.",
     tech: "Next.js, TypeScript, Marked",
     link: "https://markdown.alexszapiro.com",
     status: "live",
@@ -100,7 +102,7 @@ export const projects: Project[] = [
   },
   {
     title: "szap-cli",
-    description: "CLI tool for scaffolding projects with best practices.",
+    description: "CLI tool for scaffolding Next.js projects, APIs, and libraries with best practices built-in.",
     tech: "Node.js, Commander, Inquirer",
     link: "https://github.com/adszapiro/szap-projects/tree/main/packages/szap-cli",
     status: "live",
@@ -108,9 +110,9 @@ export const projects: Project[] = [
     repo: "https://github.com/adszapiro/szap-projects",
   },
   {
-    title: "Todo App",
-    description: "Task management with Supabase backend.",
-    tech: "Next.js, Supabase",
+    title: "Task Manager",
+    description: "Full-stack task management app with categories, due dates, and Supabase backend.",
+    tech: "Next.js, Supabase, TypeScript",
     link: "https://todo.alexszapiro.com",
     status: "live",
     tier: "standard",

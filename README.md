@@ -1,8 +1,8 @@
 # Szap Projects
 
-A Turborepo monorepo containing **12+ production applications** built by Alex Szapiro. Full-stack web apps, AI tools, trading systems, and developer utilities.
+A Turborepo monorepo containing **12+ production applications** showcasing full-stack development, AI/ML integration, and FinTech tools.
 
-[![Portfolio](https://img.shields.io/badge/Portfolio-Live-brightgreen)](https://portfolio-adszapiro.vercel.app)
+[![Portfolio](https://img.shields.io/badge/Portfolio-alexszapiro.com-brightgreen)](https://alexszapiro.com)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/alex-szapiro/)
 [![Email](https://img.shields.io/badge/Email-aszapiro%40umich.edu-red)](mailto:aszapiro@umich.edu)
 
@@ -10,33 +10,64 @@ A Turborepo monorepo containing **12+ production applications** built by Alex Sz
 
 ## Featured Projects
 
-### AI & Machine Learning
-| Project | Description | Tech Stack | Demo |
-|---------|-------------|------------|------|
-| **ResumeAI** | AI-powered resume analyzer that matches resumes to job descriptions using GPT-4 | Next.js, OpenAI GPT-4, TypeScript | [Live](https://resume-ai-sooty-seven.vercel.app) |
-| **AI Quant Agent** | Autonomous trading agent with Claude + GPT-4 debate system for strategy selection | Node.js, Anthropic, OpenAI, Supabase | Private |
+### Algo Trading Backtester
+**Professional-grade trading strategy backtester supporting 500+ stocks and 50+ crypto pairs.**
+
+- TradingView-style charts with real-time data
+- Custom strategy editor with JavaScript execution
+- Multi-asset comparison and risk analytics
+- [Live Demo](https://backtester.alexszapiro.com) | [Code](./apps/backtester)
+
+### AI Quant Agent
+**Autonomous trading agent using dual-model AI (GPT-4 + Claude) for strategy generation.**
+
+- Multi-model debate system for strategy selection
+- Real-time paper trading via Alpaca API
+- Risk management with daily loss limits
+- Supabase logging and performance tracking
+- [Code](./apps/quant-agent)
+
+### WalletScope
+**Ethereum wallet analyzer with risk scoring and portfolio visualization.**
+
+- Real-time ETH balance and token holdings
+- Portfolio distribution charts
+- Risk factor analysis
+- [Live Demo](https://walletscope.alexszapiro.com) | [Code](./apps/wallet-scope)
+
+### ResumeAI
+**GPT-4 powered resume analyzer that matches resumes to job descriptions.**
+
+- PDF upload with automatic parsing
+- Match score with detailed breakdown
+- Actionable improvement suggestions
+- [Live Demo](https://resume.alexszapiro.com) | [Code](./apps/resume-ai)
+
+---
+
+## All Projects
 
 ### Trading & Finance
-| Project | Description | Tech Stack | Demo |
-|---------|-------------|------------|------|
-| **Algo Backtester** | TradingView-style backtesting platform with custom strategy editor | Next.js, Lightweight Charts, Monaco Editor | [Live](https://szap-backtester.vercel.app) |
-| **Paper Trading Bot** | Real-time paper trading dashboard connected to Alpaca | Next.js, Alpaca API, TypeScript | Private |
-| **WalletScope** | Ethereum wallet analyzer with risk scoring and portfolio metrics | Next.js, Ethereum RPC, CoinGecko API | [Live](https://wallet-scope.vercel.app) |
+| Project | Description | Live Demo |
+|---------|-------------|-----------|
+| Algo Backtester | TradingView-style backtesting platform | [backtester.alexszapiro.com](https://backtester.alexszapiro.com) |
+| Paper Trading Bot | Real-time paper trading dashboard | [trading.alexszapiro.com](https://trading.alexszapiro.com) |
+| WalletScope | Ethereum wallet analyzer | [walletscope.alexszapiro.com](https://walletscope.alexszapiro.com) |
+| AI Quant Agent | Autonomous trading agent | Backend only |
+
+### AI & Productivity
+| Project | Description | Live Demo |
+|---------|-------------|-----------|
+| ResumeAI | AI resume analyzer | [resume.alexszapiro.com](https://resume.alexszapiro.com) |
+| DevPulse | GitHub activity dashboard | [devpulse.alexszapiro.com](https://devpulse.alexszapiro.com) |
+| Task Manager | Task management with email integration | [todo.alexszapiro.com](https://todo.alexszapiro.com) |
 
 ### Developer Tools
-| Project | Description | Tech Stack | Demo |
-|---------|-------------|------------|------|
-| **szap-cli** | CLI tool for scaffolding Next.js apps, APIs, and libraries | Node.js, Commander, Inquirer, Chalk | [NPM](./packages/szap-cli) |
-| **API Tester** | Postman-like REST API testing tool in the browser | Next.js, TypeScript, Tailwind CSS | [Live](https://api-tester-two-teal.vercel.app) |
-| **SnippetVault** | Code snippet manager with syntax highlighting | Next.js, Prism, localStorage | [Live](https://snippet-vault-lime.vercel.app) |
-| **MarkdownPro** | Live markdown editor with split-view preview | Next.js, Marked, localStorage | [Live](https://markdown-pro-nu.vercel.app) |
-
-### Productivity & Analytics
-| Project | Description | Tech Stack | Demo |
-|---------|-------------|------------|------|
-| **DevPulse** | GitHub activity dashboard with contribution graphs and streak tracking | Next.js, GitHub API, Recharts | [Live](https://devpulse-ivory.vercel.app) |
-| **Smart Todo** | Task manager with email integration from coaching sessions | Next.js, Supabase, Google Apps Script | [Live](https://alexszapiro-to-do.vercel.app) |
-| **Portfolio** | Personal portfolio with 3D graphics and animations | Next.js, Three.js, Framer Motion | [Live](https://portfolio-adszapiro.vercel.app) |
+| Project | Description | Live Demo |
+|---------|-------------|-----------|
+| API Tester | REST API testing tool | [api.alexszapiro.com](https://api.alexszapiro.com) |
+| SnippetVault | Code snippet manager | [snippets.alexszapiro.com](https://snippets.alexszapiro.com) |
+| MarkdownPro | Markdown editor with live preview | [markdown.alexszapiro.com](https://markdown.alexszapiro.com) |
 
 ---
 
@@ -44,16 +75,25 @@ A Turborepo monorepo containing **12+ production applications** built by Alex Sz
 
 | Category | Technologies |
 |----------|--------------|
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS |
-| **3D/Graphics** | Three.js, React Three Fiber, Framer Motion |
+| **Frontend** | Next.js 15+, React 19, TypeScript, Tailwind CSS v4 |
 | **Backend** | Node.js, Supabase, REST APIs |
-| **AI/ML** | OpenAI GPT-4, Anthropic Claude, Custom Agents |
-| **Data** | Recharts, Lightweight Charts, Prism |
+| **AI/ML** | OpenAI GPT-4, Anthropic Claude |
+| **Trading** | Alpaca API, Lightweight Charts, Monaco Editor |
+| **Blockchain** | Ethereum RPC, CoinGecko API |
+| **Testing** | Vitest (unit), Playwright (E2E) |
 | **Infrastructure** | Turborepo, Vercel, GitHub Actions |
 
 ---
 
 ## Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm 11+
+- Git
+
+### Installation
 
 ```bash
 # Clone the repository
@@ -67,11 +107,27 @@ npm install
 npm run dev
 
 # Run a specific app
-npm run dev --filter=portfolio
-npm run dev --filter=resume-ai
+npm run dev -w portfolio
+npm run dev -w backtester
 
 # Build all apps
 npm run build
+
+# Run tests
+npm run test:unit
+npm run test:e2e
+```
+
+### Environment Variables
+
+Some apps require API keys. Copy the example files and add your keys:
+
+```bash
+# For ResumeAI (requires OpenAI)
+cp apps/resume-ai/.env.example apps/resume-ai/.env.local
+
+# For Trading Bot (requires Alpaca)
+cp apps/trading-bot/.env.example apps/trading-bot/.env.local
 ```
 
 ---
@@ -107,11 +163,11 @@ szap-projects/
 
 ## About Me
 
-I'm a student at the **University of Michigan** studying Economics with a focus on technology and finance. I build software that solves real problems at the intersection of AI, trading, and developer productivity.
+I'm a student at the **University of Michigan** (B.A. Economics, Minor in Real Estate) who is self-taught in software engineering. I build tools at the intersection of finance and technology.
 
-**Currently seeking internship opportunities for Summer 2026.**
+**Incoming Private Credit Intern at Churchill Real Estate (Summer 2025)**
 
-- **Portfolio:** [portfolio-adszapiro.vercel.app](https://portfolio-adszapiro.vercel.app)
+- **Portfolio:** [alexszapiro.com](https://alexszapiro.com)
 - **LinkedIn:** [linkedin.com/in/alex-szapiro](https://www.linkedin.com/in/alex-szapiro/)
 - **Email:** aszapiro@umich.edu
 - **GitHub:** [@adszapiro](https://github.com/adszapiro)
@@ -120,4 +176,4 @@ I'm a student at the **University of Michigan** studying Economics with a focus 
 
 ## License
 
-MIT License - feel free to use this code for learning and inspiration.
+MIT License

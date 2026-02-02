@@ -14,14 +14,19 @@ export const personalInfo = {
 };
 
 export const skills = [
+  // Technical
   "TypeScript",
   "React",
   "Next.js",
   "Node.js",
   "Python",
-  "Tailwind",
+  "Tailwind CSS",
   "Git",
-  "APIs",
+  "REST APIs",
+  // Finance
+  "Bloomberg Terminal",
+  "FactSet",
+  "Excel",
 ];
 
 export const aboutText = {
