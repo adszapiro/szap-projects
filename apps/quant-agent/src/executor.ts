@@ -282,7 +282,7 @@ export async function getCryptoBars(
     return cached.data;
   }
 
-  // Always try Alpaca first for major coins
+  // Always try Alpaca first - they support major crypto pairs
   const formattedSymbol = formatCryptoSymbol(symbol);
   const { apiKey, secretKey } = getCredentials();
   
@@ -314,9 +314,11 @@ export async function getCryptoBars(
         return result;
       }
       // No bars from Alpaca for this symbol, try CoinGecko
+    } else {
+      console.log(`Alpaca crypto returned ${response.status} for ${symbol}`);
     }
   } catch (error) {
-    // Silently fall through to CoinGecko
+    console.log(`Alpaca crypto error for ${symbol}: ${error}`);
   }
 
   // Fall back to CoinGecko (with built-in rate limiting and caching)

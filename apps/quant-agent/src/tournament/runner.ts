@@ -346,17 +346,26 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const currentPrice = data.close[data.close.length - 1];
           const qty = maxPositionValue / currentPrice;
           
+          console.log(`🔄 Attempting BUY: ${symbol} qty=${qty.toFixed(4)} @ $${currentPrice.toFixed(2)}`);
+          
           if (qty > 0 && currentPrice > 0) {
-            const orderResult = await placeSimulatedOrder({
-              symbol,
-              side: "buy",
-              qty,
-              strategy_id: strategy.id,
-              reasoning: `[Tournament] ${signal.reason}`,
-            });
-            tradeId = orderResult.tradeId;
-            tradeExecuted = true;
-            tradesExecuted++;
+            try {
+              const orderResult = await placeSimulatedOrder({
+                symbol,
+                side: "buy",
+                qty,
+                strategy_id: strategy.id,
+                reasoning: `[Tournament] ${signal.reason}`,
+              });
+              tradeId = orderResult.tradeId;
+              tradeExecuted = true;
+              tradesExecuted++;
+              console.log(`✅ BUY executed: ${symbol} tradeId=${tradeId}`);
+            } catch (error) {
+              console.error(`❌ BUY failed for ${symbol}:`, error);
+            }
+          } else {
+            console.log(`⚠️ BUY skipped: qty=${qty}, price=${currentPrice}`);
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
           const orderResult = await placeSimulatedOrder({
