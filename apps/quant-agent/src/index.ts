@@ -33,6 +33,11 @@ import {
   getSimulatedAccountValue,
   logSimulatedStatus,
 } from "./simulator.js";
+import {
+  recordError,
+  clearSuccessfulStrategy,
+  getHealthStatus,
+} from "./healer.js";
 
 // Default crypto symbols to trade (can be fetched dynamically)
 const CRYPTO_SYMBOLS = [
@@ -111,18 +116,41 @@ function RSI(arr: number[], period: number): number[] {
   return result;
 }
 
+// Validate data before strategy execution
+function validateData(data: { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }): boolean {
+  if (!data) return false;
+  if (!Array.isArray(data.close) || data.close.length < 10) return false;
+  if (!Array.isArray(data.high) || data.high.length < 10) return false;
+  if (!Array.isArray(data.low) || data.low.length < 10) return false;
+  if (!Array.isArray(data.open) || data.open.length < 10) return false;
+  // Volume can be 0 for crypto from CoinGecko
+  return true;
+}
+
 // Execute a strategy and return signal
 function executeStrategy(
   code: string,
   data: { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] },
   position: { qty: number; avgEntryPrice: number; side: string } | null
 ): { type: "buy" | "sell" | "hold"; confidence: number; reason: string } {
+  // Validate data first
+  if (!validateData(data)) {
+    return { type: "hold", confidence: 0, reason: "Insufficient data for analysis" };
+  }
+  
   try {
-    // Create function from code string
-    const strategyFn = new Function("data", "position", "SMA", "EMA", "RSI", `
+    // Wrap strategy code with safety checks
+    const safeCode = `
+      // Safety wrapper - ensure data arrays exist
+      if (!data || !data.close || !data.close.length) {
+        return { type: "hold", confidence: 0, reason: "No data available" };
+      }
       ${code}
       return generateSignal(data, position);
-    `);
+    `;
+    
+    // Create function from code string
+    const strategyFn = new Function("data", "position", "SMA", "EMA", "RSI", safeCode);
     
     return strategyFn(data, position, SMA, EMA, RSI);
   } catch (error) {
@@ -326,6 +354,14 @@ async function executeStrategies(
         
         // Execute strategy
         const signal = executeStrategy(strategy.code, data, positionInfo);
+        
+        // Track errors for self-healing
+        if (signal.reason.startsWith("Error:")) {
+          await recordError(strategy.id, signal.reason, symbol);
+        } else if (signal.type !== "hold" || signal.confidence > 0) {
+          // Strategy executed successfully
+          clearSuccessfulStrategy(strategy.id);
+        }
         
         await log("decision", "signal_generated", {
           strategy_id: strategy.id,
