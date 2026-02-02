@@ -265,51 +265,71 @@ export async function getCryptoAssets(): Promise<string[]> {
   return assets.map((a: any) => a.symbol);
 }
 
+// Crypto bars cache to avoid repeated API calls
+const cryptoBarsCache: Map<string, { data: any; timestamp: number }> = new Map();
+const CRYPTO_BARS_CACHE_TTL = 60 * 1000; // 1 minute cache
+
 // Get crypto OHLCV bars (tries Alpaca first, falls back to CoinGecko)
 export async function getCryptoBars(
   symbol: string,
   timeframe: string = "1Day",
   limit: number = 100
 ): Promise<{ close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }> {
-  // Try Alpaca first if we haven't determined it's unavailable
-  if (alpacaCryptoAvailable !== false) {
-    try {
-      const formattedSymbol = formatCryptoSymbol(symbol);
-      const { apiKey, secretKey } = getCredentials();
-      
-      const response = await fetch(
-        `${ALPACA_CRYPTO_DATA_URL}/bars?symbols=${formattedSymbol}&timeframe=${timeframe}&limit=${limit}`,
-        {
-          headers: {
-            "APCA-API-KEY-ID": apiKey,
-            "APCA-API-SECRET-KEY": secretKey,
-          },
-        }
-      );
+  // Check cache first
+  const cacheKey = `${symbol}-${timeframe}-${limit}`;
+  const cached = cryptoBarsCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CRYPTO_BARS_CACHE_TTL) {
+    return cached.data;
+  }
 
-      if (response.ok) {
-        alpacaCryptoAvailable = true;
-        const data = await response.json();
-        const bars = data.bars?.[formattedSymbol] || [];
-        
-        return {
+  // Always try Alpaca first for major coins
+  const formattedSymbol = formatCryptoSymbol(symbol);
+  const { apiKey, secretKey } = getCredentials();
+  
+  try {
+    const response = await fetch(
+      `${ALPACA_CRYPTO_DATA_URL}/bars?symbols=${formattedSymbol}&timeframe=${timeframe}&limit=${limit}`,
+      {
+        headers: {
+          "APCA-API-KEY-ID": apiKey,
+          "APCA-API-SECRET-KEY": secretKey,
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const bars = data.bars?.[formattedSymbol] || [];
+      
+      if (bars.length > 0) {
+        const result = {
           close: bars.map((b: any) => b.c),
           high: bars.map((b: any) => b.h),
           low: bars.map((b: any) => b.l),
           open: bars.map((b: any) => b.o),
           volume: bars.map((b: any) => b.v),
         };
-      } else if (response.status === 401 || response.status === 403) {
-        console.log("⚠️ Alpaca crypto not available, falling back to CoinGecko");
-        alpacaCryptoAvailable = false;
+        // Cache the result
+        cryptoBarsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+        return result;
       }
-    } catch (error) {
-      console.log("⚠️ Alpaca crypto error, trying CoinGecko:", error);
+      // No bars from Alpaca for this symbol, try CoinGecko
     }
+  } catch (error) {
+    // Silently fall through to CoinGecko
   }
 
-  // Fall back to CoinGecko
-  return getCryptoBarsFromCoinGecko(symbol, limit);
+  // Fall back to CoinGecko (with built-in rate limiting and caching)
+  try {
+    const result = await getCryptoBarsFromCoinGecko(symbol, limit);
+    // Cache the result
+    cryptoBarsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
+  } catch (error) {
+    // Return empty data if both sources fail
+    console.log(`⚠️ No crypto data available for ${symbol}`);
+    return { close: [], high: [], low: [], open: [], volume: [] };
+  }
 }
 
 // Rate limiting for CoinGecko (free tier: 10-30 calls/minute)
