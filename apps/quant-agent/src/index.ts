@@ -44,6 +44,7 @@ import {
 import { runStockTournament, runCryptoTournament, printLeaderboard } from "./tournament/runner.js";
 import { runLearningCycle, generateReport } from "./tournament/learner.js";
 import { getBanditStats, sampleAllocation } from "./bandit/thompson.js";
+import { runDailyReportCycle } from "./reports/daily.js";
 
 // Tournament mode flag
 const TOURNAMENT_MODE = process.env.TOURNAMENT_MODE !== "false"; // Default: enabled
@@ -795,11 +796,24 @@ async function main(): Promise<void> {
     });
   });
   
+  // Daily summary report: 5 PM ET (after market close), Mon-Fri
+  cron.schedule("0 17 * * 1-5", async () => {
+    console.log(`\n📋 [REPORT] Generating daily summary at ${new Date().toISOString()}`);
+    await safeRun("daily_report", runDailyReportCycle);
+  });
+  
+  // Weekend summary: 11 PM UTC on Sunday
+  cron.schedule("0 23 * * 0", async () => {
+    console.log(`\n📋 [REPORT] Generating weekend summary at ${new Date().toISOString()}`);
+    await safeRun("weekend_report", runDailyReportCycle);
+  });
+  
   console.log("\n📅 Cron schedules configured:");
   console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
   console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");
+  console.log("   📋 Daily Report: 5 PM ET, Mon-Fri");
   if (TOURNAMENT_MODE) {
     console.log("   🏆 Tournament Learning: Every hour");
   }

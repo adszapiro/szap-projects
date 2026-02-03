@@ -80,6 +80,29 @@ export interface StrategyPerformance {
   updated_at: string;
 }
 
+export interface DailyReport {
+  id: string;
+  date: string;
+  portfolio_value: number;
+  cash_balance: number;
+  total_pnl: number;
+  day_pnl: number;
+  day_pnl_percent: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  best_trade: { symbol: string; pnl: number } | null;
+  worst_trade: { symbol: string; pnl: number } | null;
+  top_strategy: { name: string; winRate: number; pnl: number } | null;
+  asset_breakdown: {
+    stocks: { trades: number; pnl: number };
+    crypto: { trades: number; pnl: number };
+  };
+  convergence_score: number;
+  created_at: string;
+}
+
 export interface StrategyWithPerformance extends Strategy {
   performance?: StrategyPerformance;
   expectedWinRate?: number;
@@ -110,6 +133,20 @@ export async function getRecentTrades(limit = 20): Promise<AgentTrade[]> {
 
   if (error) {
     console.error("Error fetching trades:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function getDailyReports(limit = 30): Promise<DailyReport[]> {
+  const { data, error } = await supabase
+    .from("daily_reports")
+    .select("*")
+    .order("date", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching daily reports:", error);
     return [];
   }
   return data || [];
