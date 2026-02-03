@@ -973,6 +973,46 @@ export default function QuantDashboard() {
                     )}
                   </div>
 
+                  {/* Risk Summary */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+                    <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                      Risk Summary
+                    </h2>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Sharpe Ratio</span>
+                        <span className={`text-sm font-mono font-bold ${metrics.sharpeRatio > 0 ? "text-green-400" : "text-red-400"}`}>
+                          {metrics.sharpeRatio.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Sortino Ratio</span>
+                        <span className={`text-sm font-mono font-bold ${metrics.sortinoRatio > 0 ? "text-green-400" : "text-red-400"}`}>
+                          {metrics.sortinoRatio.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Max Drawdown</span>
+                        <span className="text-sm font-mono font-bold text-red-400">
+                          {metrics.maxDrawdown.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Profit Factor</span>
+                        <span className={`text-sm font-mono font-bold ${metrics.profitFactor > 1 ? "text-green-400" : "text-red-400"}`}>
+                          {metrics.profitFactor === Infinity ? "∞" : metrics.profitFactor.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Expectancy</span>
+                        <span className={`text-sm font-mono font-bold ${metrics.expectancy > 0 ? "text-green-400" : "text-red-400"}`}>
+                          {formatCurrency(metrics.expectancy)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* System Status */}
                   <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
                     <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
@@ -992,11 +1032,11 @@ export default function QuantDashboard() {
                       </div>
                       <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
                         <span className="text-xs text-gray-400">Active Strategies</span>
-                        <span className="text-xs font-mono text-blue-400">{strategies.length}</span>
+                        <span className="text-xs font-mono text-blue-400">{strategies.filter(s => s.status === "deployed").length}</span>
                       </div>
                       <div className="flex items-center justify-between py-2 border-b border-gray-800/30">
-                        <span className="text-xs text-gray-400">Research Papers</span>
-                        <span className="text-xs font-mono text-purple-400">{papers.length}</span>
+                        <span className="text-xs text-gray-400">Paused</span>
+                        <span className="text-xs font-mono text-yellow-400">{strategies.filter(s => s.status === "paused").length}</span>
                       </div>
                       <div className="flex items-center justify-between py-2">
                         <span className="text-xs text-gray-400">Last Activity</span>
@@ -1075,7 +1115,7 @@ export default function QuantDashboard() {
                       
                       <p className="text-sm text-gray-400 mb-4 line-clamp-2">{strategy.description}</p>
                       
-                      <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="grid grid-cols-3 gap-3 mb-4">
                         <div>
                           <p className="text-[10px] text-gray-500 uppercase mb-1">Win Rate</p>
                           <p className={`text-lg font-mono font-bold ${
@@ -1090,6 +1130,25 @@ export default function QuantDashboard() {
                           <p className="text-lg font-mono font-bold text-cyan-400">
                             {allocation.toFixed(1)}%
                           </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase mb-1">P&L</p>
+                          <p className={`text-lg font-mono font-bold ${
+                            (perf?.performance?.total_pnl || 0) >= 0 ? "text-green-400" : "text-red-400"
+                          }`}>
+                            {(perf?.performance?.total_pnl || 0) >= 0 ? "+" : ""}${(perf?.performance?.total_pnl || 0).toFixed(0)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+                        <div className="bg-gray-800/30 rounded px-2 py-1.5">
+                          <span className="text-gray-500">Trades: </span>
+                          <span className="text-gray-300 font-mono">{perf?.performance?.total_trades || 0}</span>
+                        </div>
+                        <div className="bg-gray-800/30 rounded px-2 py-1.5">
+                          <span className="text-gray-500">Wins: </span>
+                          <span className="text-green-400 font-mono">{perf?.performance?.winning_trades || 0}</span>
                         </div>
                       </div>
                       
