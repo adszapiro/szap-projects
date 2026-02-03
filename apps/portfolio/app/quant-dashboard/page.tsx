@@ -4,6 +4,21 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  Cell,
+} from "recharts";
+import {
   getDailySnapshots,
   getRecentTrades,
   getActiveStrategies,
@@ -154,6 +169,48 @@ export default function QuantDashboard() {
         color: STRATEGY_COLORS[i % STRATEGY_COLORS.length],
         pnl: s.performance?.total_pnl || 0,
         winRate: s.expectedWinRate || 0.5,
+      }));
+  }, [leaderboard]);
+
+  // P&L History for chart
+  const pnlHistory = useMemo(() => {
+    if (trades.length === 0) return [];
+    
+    // Sort trades by date (oldest first)
+    const sortedTrades = [...trades].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    
+    // Group by date and calculate cumulative P&L
+    const dailyPnL: { [date: string]: number } = {};
+    let cumulativePnL = 0;
+    
+    sortedTrades.forEach(trade => {
+      const date = trade.created_at.split('T')[0];
+      cumulativePnL += (trade.pnl || 0);
+      dailyPnL[date] = cumulativePnL;
+    });
+    
+    // Convert to array for chart
+    return Object.entries(dailyPnL).map(([date, pnl]) => ({
+      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      pnl: pnl,
+      value: 100000 + pnl,
+    }));
+  }, [trades]);
+
+  // Strategy performance comparison data
+  const strategyComparison = useMemo(() => {
+    return leaderboard
+      .slice(0, 10)
+      .map((s, i) => ({
+        name: s.name.length > 15 ? s.name.slice(0, 15) + '...' : s.name,
+        fullName: s.name,
+        winRate: ((s.expectedWinRate || 0.5) * 100),
+        pnl: s.performance?.total_pnl || 0,
+        trades: s.performance?.total_trades || 0,
+        allocation: (s.performance?.current_weight || 0) * 100,
+        color: STRATEGY_COLORS[i % STRATEGY_COLORS.length],
       }));
   }, [leaderboard]);
 
@@ -354,7 +411,149 @@ export default function QuantDashboard() {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "overview" && (
-              <div className="grid lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
+                {/* Charts Row */}
+                <div className="grid lg:grid-cols-2 gap-6">
+                  {/* P&L Over Time Chart */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Portfolio Value Over Time
+                      </h2>
+                      <span className="text-xs text-gray-500 font-mono">
+                        {pnlHistory.length > 0 ? `${pnlHistory.length} data points` : 'Waiting for data...'}
+                      </span>
+                    </div>
+                    {pnlHistory.length > 0 ? (
+                      <div className="h-[250px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={pnlHistory} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                            <defs>
+                              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor={COLORS.green} stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="#6b7280" 
+                              fontSize={10} 
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              stroke="#6b7280" 
+                              fontSize={10}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: '#1a1a24', 
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                              }}
+                              labelStyle={{ color: '#9ca3af' }}
+                              formatter={(value: number) => [`$${value.toLocaleString()}`, 'Portfolio']}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke={COLORS.green} 
+                              strokeWidth={2}
+                              fill="url(#colorValue)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[250px] flex items-center justify-center text-gray-500">
+                        <div className="text-center">
+                          <svg className="w-10 h-10 mx-auto mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                          </svg>
+                          <p className="text-sm">Collecting P&L data...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Strategy P&L Comparison Chart */}
+                  <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Strategy P&L Comparison
+                      </h2>
+                      <span className="text-xs text-gray-500 font-mono">Top 10 strategies</span>
+                    </div>
+                    {strategyComparison.length > 0 ? (
+                      <div className="h-[250px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={strategyComparison} 
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={true} vertical={false} />
+                            <XAxis 
+                              type="number"
+                              stroke="#6b7280" 
+                              fontSize={10}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(v) => `$${v.toFixed(0)}`}
+                            />
+                            <YAxis 
+                              type="category"
+                              dataKey="name" 
+                              stroke="#6b7280" 
+                              fontSize={10}
+                              tickLine={false}
+                              axisLine={false}
+                              width={75}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: '#1a1a24', 
+                                border: '1px solid #374151',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                              }}
+                              labelStyle={{ color: '#9ca3af' }}
+                              formatter={(value: number) => [`$${value.toFixed(2)}`, 'P&L']}
+                            />
+                            <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
+                              {strategyComparison.map((entry, index) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={entry.pnl >= 0 ? COLORS.green : COLORS.red}
+                                  opacity={0.8}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[250px] flex items-center justify-center text-gray-500">
+                        <div className="text-center">
+                          <svg className="w-10 h-10 mx-auto mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          <p className="text-sm">Loading strategy data...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid lg:grid-cols-3 gap-6">
                 {/* Left Column - Strategy Performance */}
                 <div className="lg:col-span-2 space-y-6">
                   {/* Strategy Leaderboard */}
@@ -651,6 +850,7 @@ export default function QuantDashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             )}
 
