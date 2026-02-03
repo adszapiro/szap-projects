@@ -77,6 +77,7 @@ export default function QuantDashboard() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [tradesPage, setTradesPage] = useState(1);
   const TRADES_PER_PAGE = 20;
+  const [strategyActions, setStrategyActions] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -117,6 +118,28 @@ export default function QuantDashboard() {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const handleStrategyAction = useCallback(async (strategyId: string, action: "pause" | "resume") => {
+    setStrategyActions(prev => ({ ...prev, [strategyId]: true }));
+    try {
+      const response = await fetch(`/api/strategies/${strategyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      
+      if (response.ok) {
+        // Refresh data to get updated status
+        await fetchData();
+      } else {
+        console.error("Failed to update strategy");
+      }
+    } catch (error) {
+      console.error("Strategy action error:", error);
+    } finally {
+      setStrategyActions(prev => ({ ...prev, [strategyId]: false }));
+    }
   }, [fetchData]);
 
   // Calculate metrics
@@ -948,7 +971,7 @@ export default function QuantDashboard() {
                         </div>
                       </div>
                       
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1.5 mb-4">
                         {strategy.symbols?.slice(0, 6).map((symbol) => (
                           <span
                             key={symbol}
@@ -962,6 +985,45 @@ export default function QuantDashboard() {
                             +{(strategy.symbols?.length || 0) - 6}
                           </span>
                         )}
+                      </div>
+                      
+                      {/* Pause/Resume Controls */}
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-800/50">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            strategy.status === "deployed" ? "bg-green-500" :
+                            strategy.status === "paused" ? "bg-yellow-500" : "bg-gray-500"
+                          }`} />
+                          <span className="text-xs text-gray-400 font-mono uppercase">
+                            {strategy.status}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleStrategyAction(
+                            strategy.id, 
+                            strategy.status === "deployed" ? "pause" : "resume"
+                          )}
+                          disabled={strategyActions[strategy.id]}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 ${
+                            strategy.status === "deployed"
+                              ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
+                              : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                          }`}
+                        >
+                          {strategyActions[strategy.id] ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              ...
+                            </span>
+                          ) : strategy.status === "deployed" ? (
+                            "Pause"
+                          ) : (
+                            "Resume"
+                          )}
+                        </button>
                       </div>
                     </motion.div>
                   );

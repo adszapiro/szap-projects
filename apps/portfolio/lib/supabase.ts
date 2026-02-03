@@ -156,7 +156,7 @@ export async function getActiveStrategies(): Promise<Strategy[]> {
   const { data, error } = await supabase
     .from("strategies")
     .select("*")
-    .eq("status", "deployed")
+    .in("status", ["deployed", "paused"])
     .order("created_at", { ascending: false });
 
   if (error) {

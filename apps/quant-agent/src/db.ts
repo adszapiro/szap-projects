@@ -114,6 +114,30 @@ export async function updateStrategyStatus(id: string, status: string): Promise<
   if (error) throw error;
 }
 
+export async function pauseStrategy(id: string): Promise<void> {
+  await updateStrategyStatus(id, "paused");
+  await log("info", "strategy_paused", { strategyId: id });
+}
+
+export async function resumeStrategy(id: string): Promise<void> {
+  await updateStrategyStatus(id, "deployed");
+  await log("info", "strategy_resumed", { strategyId: id });
+}
+
+export async function getStrategyById(id: string): Promise<Strategy | null> {
+  const { data, error } = await getSupabase()
+    .from("strategies")
+    .select("*")
+    .eq("id", id)
+    .single();
+  
+  if (error) {
+    if (error.code === "PGRST116") return null; // Not found
+    throw error;
+  }
+  return data;
+}
+
 export async function getActiveStrategies(assetClass?: AssetClass): Promise<Strategy[]> {
   let query = getSupabase()
     .from("strategies")
