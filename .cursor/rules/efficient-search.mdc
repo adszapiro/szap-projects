@@ -1,0 +1,41 @@
+---
+description: Use efficient search methods to minimize token usage
+alwaysApply: true
+---
+
+# Efficient Search & Token Conservation
+
+## Search Strategy (Priority Order)
+
+1. **Grep** - Use for exact text/symbol searches (fastest, lowest tokens)
+2. **Glob** - Use to find files by name pattern
+3. **SemanticSearch** - Use for "how does X work" questions
+4. **Task with explore** - Use for broad codebase exploration
+
+## Rules
+
+- **Never read entire files** when searching for specific code - use Grep first
+- **Never use cat/head/tail** in shell - use Read tool with offset/limit
+- **Batch parallel searches** - make multiple Grep/Glob calls at once
+- **Use MCP context7** for library documentation instead of web search
+- **Avoid re-reading** files already in context
+
+## Examples
+
+```
+❌ BAD: Read entire 500-line file to find one function
+✅ GOOD: Grep "function myFunc" then Read just those lines
+
+❌ BAD: Task agent to "find where auth is defined"
+✅ GOOD: Grep "class Auth|function auth|const auth" directly
+
+❌ BAD: Web search for "React useEffect docs"
+✅ GOOD: MCP context7 get-library-docs for react
+```
+
+## Token-Heavy Operations to Avoid
+
+- Reading files over 200 lines without offset/limit
+- Running Task agents for simple symbol lookups
+- Re-reading files that were just read
+- Loading plan files (see no-old-plans rule)
