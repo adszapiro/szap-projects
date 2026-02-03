@@ -70,11 +70,18 @@ export default function QuantDashboard() {
     lastActivity: string | null;
   }>({ isRunning: false, lastActivity: null });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "research" | "trades" | "logs">("overview");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [tradesPage, setTradesPage] = useState(1);
+  const TRADES_PER_PAGE = 20;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    setError(null);
+    
     try {
       const [snapshotsData, tradesData, strategiesData, logsData, status, papersData, leaderboardData, statsData] =
         await Promise.all([
@@ -97,10 +104,12 @@ export default function QuantDashboard() {
       setLeaderboard(leaderboardData);
       setTournamentStats(statsData);
       setLastRefresh(new Date());
-    } catch (error) {
-      console.error("Error fetching data:", error);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Failed to load data. Please try again.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -214,6 +223,15 @@ export default function QuantDashboard() {
       }));
   }, [leaderboard]);
 
+  // Paginated trades
+  const paginatedTrades = useMemo(() => {
+    const start = (tradesPage - 1) * TRADES_PER_PAGE;
+    const end = start + TRADES_PER_PAGE;
+    return trades.slice(start, end);
+  }, [trades, tradesPage]);
+
+  const totalTradesPages = Math.ceil(trades.length / TRADES_PER_PAGE);
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -250,6 +268,26 @@ export default function QuantDashboard() {
         <div className="text-center">
           <div className="w-16 h-16 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-400 text-sm font-mono">Connecting to trading system...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && trades.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h2 className="text-xl font-semibold text-white mb-2">Connection Error</h2>
+          <p className="text-gray-400 text-sm mb-4">{error}</p>
+          <button
+            onClick={() => fetchData(true)}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -296,13 +334,14 @@ export default function QuantDashboard() {
                 <p className="text-sm text-gray-300 font-mono">{formatTime(lastRefresh.toISOString())}</p>
               </div>
               <button
-                onClick={fetchData}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                onClick={() => fetchData(true)}
+                disabled={refreshing}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
               <a
                 href="https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent"
@@ -1007,23 +1046,46 @@ export default function QuantDashboard() {
 
             {activeTab === "trades" && (
               <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                <div className="px-6 py-4 border-b border-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-white">Trade History</h2>
-                  <span className="text-xs text-gray-500 font-mono">{trades.length} total trades</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-gray-500 font-mono">{trades.length} total trades</span>
+                    {totalTradesPages > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setTradesPage(p => Math.max(1, p - 1))}
+                          disabled={tradesPage === 1}
+                          className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-mono"
+                        >
+                          ←
+                        </button>
+                        <span className="text-xs text-gray-400 font-mono">
+                          {tradesPage} / {totalTradesPages}
+                        </span>
+                        <button
+                          onClick={() => setTradesPage(p => Math.min(totalTradesPages, p + 1))}
+                          disabled={tradesPage === totalTradesPages}
+                          className="px-2 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-mono"
+                        >
+                          →
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gray-900/50 text-xs text-gray-400 uppercase font-mono">
-                        <th className="px-6 py-3 text-left">Time</th>
-                        <th className="px-6 py-3 text-left">Symbol</th>
-                        <th className="px-6 py-3 text-center">Side</th>
-                        <th className="px-6 py-3 text-center">Asset</th>
-                        <th className="px-6 py-3 text-right">Quantity</th>
-                        <th className="px-6 py-3 text-right">Price</th>
-                        <th className="px-6 py-3 text-right">Value</th>
-                        <th className="px-6 py-3 text-right">P&L</th>
-                        <th className="px-6 py-3 text-center">Status</th>
+                        <th className="px-4 sm:px-6 py-3 text-left">Time</th>
+                        <th className="px-4 sm:px-6 py-3 text-left">Symbol</th>
+                        <th className="px-4 sm:px-6 py-3 text-center">Side</th>
+                        <th className="px-4 sm:px-6 py-3 text-center hidden sm:table-cell">Asset</th>
+                        <th className="px-4 sm:px-6 py-3 text-right hidden md:table-cell">Quantity</th>
+                        <th className="px-4 sm:px-6 py-3 text-right hidden md:table-cell">Price</th>
+                        <th className="px-4 sm:px-6 py-3 text-right hidden lg:table-cell">Value</th>
+                        <th className="px-4 sm:px-6 py-3 text-right">P&L</th>
+                        <th className="px-4 sm:px-6 py-3 text-center hidden sm:table-cell">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800/30">
@@ -1037,18 +1099,18 @@ export default function QuantDashboard() {
                           </td>
                         </tr>
                       ) : (
-                        trades.map((trade) => (
+                        paginatedTrades.map((trade) => (
                           <tr key={trade.id} className="hover:bg-gray-800/20 transition-colors">
-                            <td className="px-6 py-3">
+                            <td className="px-4 sm:px-6 py-3">
                               <div>
                                 <p className="text-sm text-white font-mono">{formatTime(trade.created_at)}</p>
                                 <p className="text-[10px] text-gray-500">{formatDate(trade.created_at)}</p>
                               </div>
                             </td>
-                            <td className="px-6 py-3">
+                            <td className="px-4 sm:px-6 py-3">
                               <span className="font-mono font-semibold text-white">{trade.symbol}</span>
                             </td>
-                            <td className="px-6 py-3 text-center">
+                            <td className="px-4 sm:px-6 py-3 text-center">
                               <span className={`inline-flex px-2 py-1 rounded text-xs font-mono font-medium ${
                                 trade.side === "buy" 
                                   ? "bg-green-500/20 text-green-400"
@@ -1057,7 +1119,7 @@ export default function QuantDashboard() {
                                 {trade.side.toUpperCase()}
                               </span>
                             </td>
-                            <td className="px-6 py-3 text-center">
+                            <td className="px-4 sm:px-6 py-3 text-center hidden sm:table-cell">
                               <span className={`inline-flex px-2 py-1 rounded text-[10px] font-mono ${
                                 trade.asset_class === "crypto"
                                   ? "bg-purple-500/10 text-purple-400"
@@ -1066,16 +1128,16 @@ export default function QuantDashboard() {
                                 {trade.asset_class.toUpperCase()}
                               </span>
                             </td>
-                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                            <td className="px-4 sm:px-6 py-3 text-right font-mono text-sm text-gray-300 hidden md:table-cell">
                               {trade.qty}
                             </td>
-                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                            <td className="px-4 sm:px-6 py-3 text-right font-mono text-sm text-gray-300 hidden md:table-cell">
                               ${trade.price?.toFixed(2) || "--"}
                             </td>
-                            <td className="px-6 py-3 text-right font-mono text-sm text-gray-300">
+                            <td className="px-4 sm:px-6 py-3 text-right font-mono text-sm text-gray-300 hidden lg:table-cell">
                               {trade.price ? formatCurrency(trade.qty * trade.price) : "--"}
                             </td>
-                            <td className="px-6 py-3 text-right">
+                            <td className="px-4 sm:px-6 py-3 text-right">
                               {trade.pnl !== null ? (
                                 <span className={`font-mono text-sm font-medium ${
                                   trade.pnl >= 0 ? "text-green-400" : "text-red-400"
@@ -1086,7 +1148,7 @@ export default function QuantDashboard() {
                                 <span className="text-gray-500">--</span>
                               )}
                             </td>
-                            <td className="px-6 py-3 text-center">
+                            <td className="px-4 sm:px-6 py-3 text-center hidden sm:table-cell">
                               <span className={`inline-flex px-2 py-1 rounded text-[10px] font-mono ${
                                 trade.status === "filled" ? "bg-green-500/20 text-green-400" :
                                 trade.status === "pending" ? "bg-yellow-500/20 text-yellow-400" :
