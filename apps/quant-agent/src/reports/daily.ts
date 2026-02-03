@@ -3,7 +3,8 @@ import { getSimulatedAccountValue } from "../simulator.js";
 import { getLearningStats } from "../tournament/learner.js";
 import { getStrategyRankings } from "../bandit/thompson.js";
 
-const supabase = getSupabase();
+// Lazy initialization to avoid module-level supabase creation
+const getDb = () => getSupabase();
 
 export interface DailySummary {
   date: string;
@@ -91,7 +92,7 @@ export async function generateDailySummary(): Promise<DailySummary> {
   let topStrategy = null;
   
   if (topRanking) {
-    const { data: strategyData } = await supabase
+    const { data: strategyData } = await getDb()
       .from("strategies")
       .select("name")
       .eq("id", topRanking.strategyId)
@@ -124,7 +125,7 @@ export async function generateDailySummary(): Promise<DailySummary> {
 }
 
 export async function saveDailyReport(summary: DailySummary): Promise<void> {
-  const { error } = await supabase.from("daily_reports").upsert({
+  const { error } = await getDb().from("daily_reports").upsert({
     date: summary.date,
     portfolio_value: summary.portfolioValue,
     cash_balance: summary.cashBalance,

@@ -45,6 +45,7 @@ import { runStockTournament, runCryptoTournament, printLeaderboard } from "./tou
 import { runLearningCycle, generateReport } from "./tournament/learner.js";
 import { getBanditStats, sampleAllocation } from "./bandit/thompson.js";
 import { runDailyReportCycle } from "./reports/daily.js";
+import { runHealthCheckCycle } from "./tournament/health-monitor.js";
 
 // Tournament mode flag
 const TOURNAMENT_MODE = process.env.TOURNAMENT_MODE !== "false"; // Default: enabled
@@ -808,12 +809,19 @@ async function main(): Promise<void> {
     await safeRun("weekend_report", runDailyReportCycle);
   });
   
+  // Strategy health check: Every 4 hours
+  cron.schedule("0 */4 * * *", async () => {
+    console.log(`\n🏥 [HEALTH] Running strategy health check at ${new Date().toISOString()}`);
+    await safeRun("health_check", runHealthCheckCycle);
+  });
+  
   console.log("\n📅 Cron schedules configured:");
   console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
   console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");
   console.log("   📋 Daily Report: 5 PM ET, Mon-Fri");
+  console.log("   🏥 Health Check: Every 4 hours");
   if (TOURNAMENT_MODE) {
     console.log("   🏆 Tournament Learning: Every hour");
   }

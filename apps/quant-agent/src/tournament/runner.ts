@@ -10,6 +10,44 @@ import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "..
 import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue } from "../simulator.js";
 import { analyzeAndLearnFromLoss, recordWin } from "./loss-learner.js";
 
+// Volatility-based position sizing
+function calculateVolatility(prices: number[]): number {
+  if (prices.length < 20) return 0.02; // Default 2% daily volatility
+  
+  // Calculate daily returns
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+  }
+  
+  // Use last 20 days for recent volatility
+  const recentReturns = returns.slice(-20);
+  const mean = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+  const variance = recentReturns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentReturns.length;
+  
+  return Math.sqrt(variance); // Daily volatility
+}
+
+// Adjust position size based on volatility (target 1% portfolio risk per trade)
+function adjustPositionForVolatility(
+  basePositionValue: number,
+  volatility: number,
+  targetRisk: number = 0.01 // 1% of portfolio at risk
+): number {
+  const TARGET_VOLATILITY = 0.02; // 2% daily volatility baseline
+  
+  if (volatility <= 0) return basePositionValue;
+  
+  // Scale position inversely with volatility
+  // Higher volatility = smaller position
+  const volAdjustment = TARGET_VOLATILITY / volatility;
+  
+  // Clamp adjustment between 0.25x and 2x
+  const clampedAdjustment = Math.max(0.25, Math.min(2, volAdjustment));
+  
+  return basePositionValue * clampedAdjustment;
+}
+
 // Strategy execution helpers (copied from index.ts pattern)
 const STRATEGY_HELPERS = `
   function SMA(arr, period) {
@@ -178,6 +216,67 @@ export async function runStockTournament(): Promise<TournamentResult> {
           avgEntryPrice: parseFloat(position.avg_entry_price),
         } : null;
         
+        // STOP-LOSS CHECK: Force sell if position has lost more than 3% (tighter for stocks)
+        const STOP_LOSS_PERCENT = 3;
+        const currentPrice = data.close[data.close.length - 1];
+        
+        if (positionData && positionData.avgEntryPrice > 0 && !soldSymbols.has(symbol)) {
+          const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
+          
+          if (unrealizedPnlPercent <= -STOP_LOSS_PERCENT) {
+            console.log(`🛑 [STOCK] STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
+            try {
+              const result = await placeOrder({
+                symbol,
+                qty: positionData.qty,
+                side: "sell",
+                strategy_id: strategy.id,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${STOP_LOSS_PERCENT}% threshold`,
+              });
+              
+              soldSymbols.add(symbol);
+              tradesExecuted++;
+              
+              // Calculate and save P&L
+              const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
+              const costBasis = positionData.avgEntryPrice * positionData.qty;
+              const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+              
+              await updateTrade(result.tradeId, {
+                status: "filled",
+                pnl,
+                pnl_percent: pnlPercent,
+                filled_at: new Date().toISOString(),
+              });
+              
+              const won = isWinningTrade(pnl);
+              await updateBandit(strategy.id, won, pnl);
+              
+              await log("warning", "stop_loss_triggered", {
+                symbol,
+                strategy: strategy.name,
+                entryPrice: positionData.avgEntryPrice,
+                exitPrice: currentPrice,
+                unrealizedPnlPercent,
+                pnl,
+              });
+              
+              results.push({
+                strategyId: strategy.id,
+                strategyName: strategy.name,
+                symbol,
+                signal: { type: "sell", confidence: 1, reason: "Stop-loss triggered" },
+                allocation,
+                tradeExecuted: true,
+                tradeId: result.tradeId,
+              });
+              continue; // Skip strategy execution since we forced a sell
+            } catch (error) {
+              console.error(`❌ [STOCK] Stop-loss sell failed for ${symbol}:`, error);
+            }
+          }
+        }
+        
         // Execute strategy
         const signal = executeStrategyCode(strategy.code, data, positionData);
         signalsGenerated++;
@@ -201,10 +300,14 @@ export async function runStockTournament(): Promise<TournamentResult> {
         const meetsExploreThreshold = shouldExplore && signal.confidence >= minConfidenceForExplore;
         
         if (signal.type === "buy" && (meetsThreshold || meetsExploreThreshold) && !positionData && !boughtSymbols.has(symbol)) {
-          const currentPrice = data.close[data.close.length - 1];
-          const qty = Math.floor(maxPositionValue / currentPrice);
+          const buyPrice = data.close[data.close.length - 1];
           
-          console.log(`🔄 [STOCK] Attempting BUY: ${symbol} qty=${qty} @ $${currentPrice.toFixed(2)} (maxPos=$${maxPositionValue.toFixed(0)})`);
+          // Volatility-adjusted position sizing
+          const volatility = calculateVolatility(data.close);
+          const adjustedPositionValue = adjustPositionForVolatility(maxPositionValue, volatility);
+          const qty = Math.floor(adjustedPositionValue / buyPrice);
+          
+          console.log(`🔄 [STOCK] Attempting BUY: ${symbol} qty=${qty} @ $${buyPrice.toFixed(2)} (vol=${(volatility*100).toFixed(1)}%, adj=${(adjustedPositionValue/maxPositionValue*100).toFixed(0)}%)`);
           
           if (qty > 0) {
             try {
@@ -390,6 +493,54 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           avgEntryPrice: position.avgEntryPrice,
         } : null;
         
+        // STOP-LOSS CHECK: Force sell if position has lost more than 5%
+        const STOP_LOSS_PERCENT = 5;
+        const currentPrice = data.close[data.close.length - 1];
+        
+        if (positionData && positionData.avgEntryPrice > 0) {
+          const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
+          
+          if (unrealizedPnlPercent <= -STOP_LOSS_PERCENT) {
+            console.log(`🛑 STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
+            try {
+              const orderResult = await placeSimulatedOrder({
+                symbol,
+                side: "sell",
+                qty: positionData.qty,
+                strategy_id: strategy.id,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${STOP_LOSS_PERCENT}% threshold`,
+              });
+              
+              tradesExecuted++;
+              const pnl = orderResult.pnl || 0;
+              const won = isWinningTrade(pnl);
+              await updateBandit(strategy.id, won, pnl);
+              
+              await log("warning", "stop_loss_triggered", {
+                symbol,
+                strategy: strategy.name,
+                entryPrice: positionData.avgEntryPrice,
+                exitPrice: currentPrice,
+                unrealizedPnlPercent,
+                pnl,
+              });
+              
+              results.push({
+                strategyId: strategy.id,
+                strategyName: strategy.name,
+                symbol,
+                signal: { type: "sell", confidence: 1, reason: "Stop-loss triggered" },
+                allocation,
+                tradeExecuted: true,
+                tradeId: orderResult.tradeId,
+              });
+              continue; // Skip strategy execution since we forced a sell
+            } catch (error) {
+              console.error(`❌ Stop-loss sell failed for ${symbol}:`, error);
+            }
+          }
+        }
+        
         // Execute strategy
         const signal = executeStrategyCode(strategy.code, data, positionData);
         signalsGenerated++;
@@ -413,12 +564,16 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
         const meetsExploreThreshold = shouldExplore && signal.confidence >= minConfidenceForExplore;
         
         if (signal.type === "buy" && (meetsThreshold || meetsExploreThreshold) && !positionData) {
-          const currentPrice = data.close[data.close.length - 1];
-          const qty = maxPositionValue / currentPrice;
+          const buyPrice = data.close[data.close.length - 1];
           
-          console.log(`🔄 Attempting BUY: ${symbol} qty=${qty.toFixed(4)} @ $${currentPrice.toFixed(2)}`);
+          // Volatility-adjusted position sizing
+          const volatility = calculateVolatility(data.close);
+          const adjustedPositionValue = adjustPositionForVolatility(maxPositionValue, volatility);
+          const qty = adjustedPositionValue / buyPrice;
           
-          if (qty > 0 && currentPrice > 0) {
+          console.log(`🔄 Attempting BUY: ${symbol} qty=${qty.toFixed(4)} @ $${buyPrice.toFixed(2)} (vol=${(volatility*100).toFixed(1)}%, adj=${(adjustedPositionValue/maxPositionValue*100).toFixed(0)}%)`);
+          
+          if (qty > 0 && buyPrice > 0) {
             try {
               const orderResult = await placeSimulatedOrder({
                 symbol,
@@ -437,7 +592,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               console.error(`❌ BUY failed for ${symbol}:`, error);
             }
           } else {
-            console.log(`⚠️ BUY skipped: qty=${qty}, price=${currentPrice}`);
+            console.log(`⚠️ BUY skipped: qty=${qty}, price=${buyPrice}`);
           }
         } else if (signal.type === "sell" && (meetsThreshold || meetsExploreThreshold) && positionData) {
           const entryPrice = positionData.avgEntryPrice;
