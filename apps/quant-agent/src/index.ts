@@ -723,12 +723,13 @@ async function main(): Promise<void> {
   // =====================
   
   // Safe wrapper that catches errors and logs them
-  const safeRun = async (name: string, fn: () => Promise<void>) => {
+  const safeRun = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
     try {
-      await fn();
+      return await fn();
     } catch (error) {
       console.error(`❌ [${name}] Error:`, error);
       await log("error", `${name}_failed`, { error: String(error) });
+      return undefined;
     }
   };
   
@@ -783,11 +784,13 @@ async function main(): Promise<void> {
   
   // Heartbeat log every hour to confirm agent is alive
   cron.schedule("30 * * * *", async () => {
-    const status = await getHealthStatus();
-    console.log(`💓 [HEARTBEAT] Agent alive - Errors: ${status.errors}, Success: ${status.successRate.toFixed(0)}%`);
+    const status = getHealthStatus();
+    const successRate = 100 - (status.recentErrorRate * 100);
+    console.log(`💓 [HEARTBEAT] Agent alive - Errors: ${status.totalErrors}, Success: ${successRate.toFixed(0)}%`);
     await log("info", "heartbeat", { 
-      errors: status.errors,
-      successRate: status.successRate,
+      totalErrors: status.totalErrors,
+      recentErrorRate: status.recentErrorRate,
+      successRate: successRate,
       timestamp: new Date().toISOString(),
     });
   });
