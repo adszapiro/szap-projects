@@ -7,7 +7,7 @@ import { getActiveStrategies, saveTrade, log, Strategy, AssetClass, updateStrate
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
-import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue, SIMULATED_CRYPTO_CAPITAL } from "../simulator.js";
+import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue } from "../simulator.js";
 import { analyzeAndLearnFromLoss, recordWin } from "./loss-learner.js";
 
 // Strategy execution helpers (copied from index.ts pattern)
@@ -410,6 +410,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           }
         } else if (signal.type === "sell" && signal.confidence >= CONFIDENCE_THRESHOLD && positionData) {
           const entryPrice = positionData.avgEntryPrice;
+          const exitPrice = data.close[data.close.length - 1];
           const orderResult = await placeSimulatedOrder({
             symbol,
             side: "sell",
@@ -429,7 +430,6 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           
           // ACTIVE LEARNING: Analyze losses in real-time
           if (!won && pnl < 0) {
-            const exitPrice = currentPrice;
             await analyzeAndLearnFromLoss(
               strategy.id,
               symbol,

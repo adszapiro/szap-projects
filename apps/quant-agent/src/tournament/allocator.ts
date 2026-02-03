@@ -34,8 +34,9 @@ export async function getPositionSize(
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   // Get account value
+  const simAccount = await getSimulatedAccountValue();
   const accountValue = assetClass === "crypto" 
-    ? getSimulatedAccountValue().totalValue
+    ? simAccount.totalValue
     : (await getAccount()).portfolio_value;
   
   // Get current allocation weight
@@ -63,8 +64,9 @@ export async function getAllAllocations(
 ): Promise<Map<string, number>> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
+  const simAccount2 = await getSimulatedAccountValue();
   const accountValue = assetClass === "crypto"
-    ? getSimulatedAccountValue().totalValue
+    ? simAccount2.totalValue
     : (await getAccount()).portfolio_value;
   
   const availableCapital = accountValue * (1 - cfg.cashReserve);

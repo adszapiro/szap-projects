@@ -98,7 +98,7 @@ export async function analyzeAndLearnFromLoss(
   };
 
   // Log the learning
-  await log("learning", "loss_analyzed", {
+  await log("info", "loss_analyzed", {
     strategy: strategyName,
     symbol,
     pnl,
@@ -272,7 +272,7 @@ async function executeRecommendation(
         })
         .eq("strategy_id", strategyId);
 
-      await log("action", "strategy_paused", { 
+      await log("info", "strategy_paused", { 
         strategy_id: strategyId,
         reason: "consecutive_losses",
         losses: stats.totalLosses,
@@ -295,7 +295,7 @@ async function executeRecommendation(
         })
         .eq("strategy_id", strategyId);
 
-      await log("action", "strategy_retired", {
+      await log("info", "strategy_retired", {
         strategy_id: strategyId,
         reason: "high_loss_rate",
         loss_rate: stats.lossRate,
