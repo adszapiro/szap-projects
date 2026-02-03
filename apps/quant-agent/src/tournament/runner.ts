@@ -3,7 +3,7 @@
  * Executes all strategies in parallel with weighted allocation from the bandit
  */
 
-import { getActiveStrategies, saveTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot } from "../db.js";
+import { getActiveStrategies, saveTrade, updateTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot } from "../db.js";
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
@@ -236,8 +236,21 @@ export async function runStockTournament(): Promise<TournamentResult> {
             soldSymbols.add(symbol);  // Mark as sold this cycle
             console.log(`✅ [STOCK] SELL executed: ${symbol} orderId=${result.orderId}`);
             
-            // Update bandit with result
+            // Calculate P&L
             const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
+            const costBasis = positionData.avgEntryPrice * positionData.qty;
+            const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+            
+            // PERSIST P&L TO DATABASE - This was missing!
+            await updateTrade(tradeId, {
+              status: "filled",
+              pnl,
+              pnl_percent: pnlPercent,
+              filled_at: new Date().toISOString(),
+            });
+            console.log(`💰 [STOCK] P&L persisted: ${symbol} = ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
+            
+            // Update bandit with result
             const won = isWinningTrade(pnl);
             await updateBandit(strategy.id, won, pnl);
             

@@ -257,8 +257,23 @@ export async function getStrategiesWithPerformance(): Promise<StrategyWithPerfor
     };
   });
   
-  // Sort by expected win rate and assign ranks
-  merged.sort((a, b) => (b.expectedWinRate || 0) - (a.expectedWinRate || 0));
+  // Sort by: 1) strategies with trades first, 2) then by expected win rate
+  merged.sort((a, b) => {
+    const aHasTrades = (a.performance?.total_trades || 0) > 0;
+    const bHasTrades = (b.performance?.total_trades || 0) > 0;
+    
+    // Strategies with trades come first
+    if (aHasTrades && !bHasTrades) return -1;
+    if (!aHasTrades && bHasTrades) return 1;
+    
+    // Among strategies with trades, sort by total P&L (most profitable first)
+    if (aHasTrades && bHasTrades) {
+      return (b.performance?.total_pnl || 0) - (a.performance?.total_pnl || 0);
+    }
+    
+    // Among strategies without trades, sort by expected win rate
+    return (b.expectedWinRate || 0) - (a.expectedWinRate || 0);
+  });
   merged.forEach((s, i) => { s.rank = i + 1; });
   
   return merged;

@@ -146,11 +146,17 @@ export default function QuantDashboard() {
   const metrics = useMemo(() => {
     const portfolioValue = 100000;
     const totalTrades = trades.length;
-    const winningTradesArr = trades.filter(t => t.pnl && t.pnl > 0);
-    const losingTradesArr = trades.filter(t => t.pnl && t.pnl < 0);
+    
+    // Only count closed trades (with P&L) for win rate calculation
+    const closedTrades = trades.filter(t => t.pnl !== null);
+    const winningTradesArr = closedTrades.filter(t => t.pnl && t.pnl > 0);
+    const losingTradesArr = closedTrades.filter(t => t.pnl && t.pnl < 0);
     const winningTrades = winningTradesArr.length;
     const losingTrades = losingTradesArr.length;
-    const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
+    
+    // Win rate based on closed trades only (not open positions)
+    const closedTradesCount = closedTrades.length;
+    const winRate = closedTradesCount > 0 ? (winningTrades / closedTradesCount * 100) : 0;
     const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const pnlPercent = (totalPnL / portfolioValue) * 100;
     
@@ -202,6 +208,13 @@ export default function QuantDashboard() {
     const todayTrades = trades.filter(t => t.created_at.startsWith(today));
     const todayPnL = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
 
+    // P&L Trend: Compare last 5 closed trades vs previous 5
+    const recentClosed = closedTrades.slice(0, 10); // Most recent 10 closed trades
+    const last5Pnl = recentClosed.slice(0, 5).reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const prev5Pnl = recentClosed.slice(5, 10).reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const pnlTrend = last5Pnl > prev5Pnl ? "up" : last5Pnl < prev5Pnl ? "down" : "flat";
+    const trendStrength = recentClosed.length >= 5 ? Math.abs(last5Pnl - prev5Pnl) : 0;
+
     return {
       portfolioValue: portfolioValue + totalPnL,
       totalPnL,
@@ -209,6 +222,7 @@ export default function QuantDashboard() {
       totalTrades,
       winningTrades,
       losingTrades,
+      closedTradesCount,
       winRate,
       sharpeRatio,
       sortinoRatio,
@@ -219,6 +233,8 @@ export default function QuantDashboard() {
       expectancy,
       todayTrades: todayTrades.length,
       todayPnL,
+      pnlTrend,
+      trendStrength,
     };
   }, [trades]);
 
@@ -292,6 +308,42 @@ export default function QuantDashboard() {
       currency: "USD",
       minimumFractionDigits: 2,
     }).format(value);
+
+  // Export trades to CSV
+  const exportTradesToCSV = useCallback(() => {
+    if (trades.length === 0) return;
+    
+    const headers = ["Date", "Time", "Symbol", "Side", "Asset Class", "Quantity", "Price", "Value", "P&L", "P&L %", "Status", "Reasoning"];
+    const rows = trades.map(trade => {
+      const date = new Date(trade.created_at);
+      const value = trade.qty * (trade.price || 0);
+      return [
+        date.toLocaleDateString(),
+        date.toLocaleTimeString(),
+        trade.symbol,
+        trade.side.toUpperCase(),
+        trade.asset_class,
+        trade.qty.toString(),
+        trade.price?.toFixed(2) || "",
+        value.toFixed(2),
+        trade.pnl?.toFixed(2) || "",
+        trade.pnl_percent?.toFixed(2) || "",
+        trade.status,
+        (trade.reasoning || "").replace(/,/g, ";"), // Escape commas in reasoning
+      ];
+    });
+    
+    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `quant-trades-${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [trades]);
 
   const formatCompact = (value: number) =>
     new Intl.NumberFormat("en-US", {
@@ -426,6 +478,7 @@ export default function QuantDashboard() {
               value={formatCurrency(metrics.totalPnL)}
               isPositive={metrics.totalPnL >= 0}
               size="large"
+              trend={metrics.pnlTrend as "up" | "down" | "flat"}
             />
             <MetricCard
               label="Today"
@@ -436,7 +489,7 @@ export default function QuantDashboard() {
             <MetricCard
               label="Win Rate"
               value={`${metrics.winRate.toFixed(1)}%`}
-              subtext={`${metrics.winningTrades}W / ${metrics.losingTrades}L`}
+              subtext={`${metrics.winningTrades}W / ${metrics.losingTrades}L (${metrics.closedTradesCount} closed)`}
               isPositive={metrics.winRate >= 50}
             />
             <MetricCard
@@ -1180,6 +1233,16 @@ export default function QuantDashboard() {
                 <div className="px-6 py-4 border-b border-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-white">Trade History</h2>
                   <div className="flex items-center gap-4">
+                    <button
+                      onClick={exportTradesToCSV}
+                      disabled={trades.length === 0}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Export CSV
+                    </button>
                     <span className="text-xs text-gray-500 font-mono">{trades.length} total trades</span>
                     {totalTradesPages > 1 && (
                       <div className="flex items-center gap-2">
@@ -1364,7 +1427,8 @@ function MetricCard({
   change, 
   subtext, 
   isPositive, 
-  size = "normal" 
+  size = "normal",
+  trend,
 }: { 
   label: string; 
   value: string; 
@@ -1372,18 +1436,34 @@ function MetricCard({
   subtext?: string;
   isPositive?: boolean;
   size?: "normal" | "large";
+  trend?: "up" | "down" | "flat";
 }) {
   return (
     <div className={`${size === "large" ? "col-span-1" : ""}`}>
       <p className="text-[10px] text-gray-500 uppercase font-mono mb-1">{label}</p>
-      <p className={`font-mono font-semibold ${
-        size === "large" ? "text-xl" : "text-lg"
-      } ${
-        isPositive === true ? "text-green-400" :
-        isPositive === false ? "text-red-400" : "text-white"
-      }`}>
-        {value}
-      </p>
+      <div className="flex items-center gap-2">
+        <p className={`font-mono font-semibold ${
+          size === "large" ? "text-xl" : "text-lg"
+        } ${
+          isPositive === true ? "text-green-400" :
+          isPositive === false ? "text-red-400" : "text-white"
+        }`}>
+          {value}
+        </p>
+        {trend && trend !== "flat" && (
+          <span className={`flex items-center ${trend === "up" ? "text-green-400" : "text-red-400"}`}>
+            {trend === "up" ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            )}
+          </span>
+        )}
+      </div>
       {change !== undefined && (
         <p className={`text-xs font-mono ${change >= 0 ? "text-green-400" : "text-red-400"}`}>
           {change >= 0 ? "+" : ""}{change.toFixed(2)}%
