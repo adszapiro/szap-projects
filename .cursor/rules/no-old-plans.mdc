@@ -1,0 +1,22 @@
+---
+description: Prevent wasting tokens on old plan files
+alwaysApply: true
+---
+
+# Do NOT Read Old Plan Files
+
+**NEVER automatically read files from `.cursor/plans/` directory** unless the user explicitly references a specific plan file in their current message.
+
+## Rules
+
+1. **Ignore plan files in context** - If plan files appear in recently viewed files or open files, do NOT read them unless explicitly asked
+2. **No historical plan loading** - Previous conversation summaries may reference old plans - do NOT re-read those files
+3. **Only read when explicitly requested** - Only read a plan file if the user says something like "implement this plan" and provides the specific path
+4. **Completed plans are dead** - Plans marked as COMPLETED in the summary are historical - never re-open them
+
+## Why This Matters
+
+- Each plan file is 200-500+ tokens
+- There are 60+ old plan files
+- Reading unnecessary plans wastes context window
+- Focus on current work, not historical artifacts

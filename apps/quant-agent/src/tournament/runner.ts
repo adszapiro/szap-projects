@@ -168,13 +168,44 @@ export async function runStockTournament(): Promise<TournamentResult> {
   // Sample allocation from bandit
   const allocations = await sampleAllocation();
   
-  // Get current positions
-  const positions = await getPositions();
-  const positionMap = new Map(positions.map(p => [p.symbol, p]));
+  // Get current positions with error handling
+  let positions: Awaited<ReturnType<typeof getPositions>>;
+  let accountValue: number;
   
-  // Get account value for position sizing
-  const account = await getAccount();
-  const accountValue = account.portfolio_value;
+  try {
+    positions = await getPositions();
+  } catch (error) {
+    await log("error", "failed_to_get_positions", { error: String(error) });
+    console.error("❌ Failed to get positions from Alpaca:", error);
+    return {
+      cycle: "stock",
+      timestamp,
+      strategiesRun: 0,
+      signalsGenerated: 0,
+      tradesExecuted: 0,
+      allocations: new Map(),
+      results: [],
+    };
+  }
+  
+  try {
+    const account = await getAccount();
+    accountValue = account.portfolio_value;
+  } catch (error) {
+    await log("error", "failed_to_get_account", { error: String(error) });
+    console.error("❌ Failed to get account from Alpaca:", error);
+    return {
+      cycle: "stock",
+      timestamp,
+      strategiesRun: 0,
+      signalsGenerated: 0,
+      tradesExecuted: 0,
+      allocations: new Map(),
+      results: [],
+    };
+  }
+  
+  const positionMap = new Map(positions.map(p => [p.symbol, p]));
   
   // Track symbols already traded this cycle to prevent multiple sells/buys
   const soldSymbols = new Set<string>();
@@ -273,6 +304,9 @@ export async function runStockTournament(): Promise<TournamentResult> {
               continue; // Skip strategy execution since we forced a sell
             } catch (error) {
               console.error(`❌ [STOCK] Stop-loss sell failed for ${symbol}:`, error);
+              // Mark as sold to prevent strategy from attempting another sell
+              soldSymbols.add(symbol);
+              continue; // Skip strategy execution to prevent double-sell
             }
           }
         }
@@ -537,6 +571,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               continue; // Skip strategy execution since we forced a sell
             } catch (error) {
               console.error(`❌ Stop-loss sell failed for ${symbol}:`, error);
+              continue; // Skip strategy execution to prevent double-sell
             }
           }
         }

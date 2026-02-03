@@ -3,15 +3,14 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import About from "@/components/About";
-import ProjectAccordion from "@/components/ProjectAccordion";
+import ProjectCardGrid from "@/components/ProjectCardGrid";
+import SkillsSection from "@/components/SkillsSection";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
 import { getAllProjects } from "@/data/projects";
-import { skills } from "@/data/config";
 import { motion } from "framer-motion";
 
 export default function Home() {
-
   const projects = getAllProjects();
 
   return (
@@ -22,71 +21,54 @@ export default function Home() {
       >
         Skip to main content
       </a>
-      
+
       <Header />
 
-      <main id="main-content" className="max-w-3xl mx-auto px-6" role="main">
-        <Hero />
+      <main id="main-content" role="main">
+        {/* Hero and About sections - narrower width */}
+        <div className="max-w-3xl mx-auto px-6">
+          <Hero />
+          <About />
+        </div>
 
-        <About />
+        {/* Skills Section - wider for the grid */}
+        <div className="max-w-4xl mx-auto px-6">
+          <SkillsSection />
+        </div>
 
-        <section id="skills" className="mb-24 scroll-mt-20">
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-2xl font-semibold text-[var(--text)] mb-6"
-          >
-            Skills
-          </motion.h2>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="flex flex-wrap gap-2"
-          >
-            {skills.map((skill) => (
-              <span 
-                key={skill}
-                className="px-3 py-1.5 bg-[var(--bg-secondary)] text-[var(--text-secondary)] text-sm rounded-lg border border-[var(--border)]"
-              >
-                {skill}
-              </span>
-            ))}
-          </motion.div>
-        </section>
-
-        <section id="projects" className="mb-24 scroll-mt-20" aria-labelledby="projects-heading">
-          <motion.h2 
-            id="projects-heading"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-2xl font-semibold text-[var(--text)] mb-4"
-          >
-            Projects
-          </motion.h2>
-
+        {/* Projects Section - wider for impressive cards */}
+        <section
+          id="projects"
+          className="mb-24 scroll-mt-20 max-w-5xl mx-auto px-6"
+          aria-labelledby="projects-heading"
+        >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="border-t border-[var(--border)]"
+            className="mb-8"
           >
-            {projects.map((project) => (
-              <ProjectAccordion key={project.title} project={project} />
-            ))}
+            <h2
+              id="projects-heading"
+              className="text-2xl font-semibold text-[var(--text)] mb-2"
+            >
+              Featured Projects
+            </h2>
+            <p className="text-[var(--text-secondary)]">
+              A selection of projects I've built, from AI-powered trading systems to developer tools.
+            </p>
           </motion.div>
+
+          <ProjectCardGrid projects={projects} />
         </section>
 
-        <Contact />
+        {/* Contact Section */}
+        <div className="max-w-3xl mx-auto px-6">
+          <Contact />
+        </div>
       </main>
 
       <Footer />
     </div>
   );
 }
-

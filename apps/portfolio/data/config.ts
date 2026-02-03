@@ -29,6 +29,50 @@ export const skills = [
   "Excel",
 ];
 
+// Categorized skills with icons for the enhanced skills section
+export const skillCategories = [
+  {
+    name: "Languages",
+    icon: "Code2",
+    skills: [
+      { name: "TypeScript", icon: "FileCode2" },
+      { name: "Python", icon: "Terminal" },
+      { name: "JavaScript", icon: "Braces" },
+      { name: "SQL", icon: "Database" },
+    ],
+  },
+  {
+    name: "Frameworks",
+    icon: "Layers",
+    skills: [
+      { name: "React", icon: "Atom" },
+      { name: "Next.js", icon: "Globe" },
+      { name: "Node.js", icon: "Server" },
+      { name: "Tailwind CSS", icon: "Paintbrush" },
+    ],
+  },
+  {
+    name: "Tools & Platforms",
+    icon: "Wrench",
+    skills: [
+      { name: "Git", icon: "GitBranch" },
+      { name: "Supabase", icon: "Database" },
+      { name: "Vercel", icon: "Triangle" },
+      { name: "REST APIs", icon: "Zap" },
+    ],
+  },
+  {
+    name: "Finance",
+    icon: "TrendingUp",
+    skills: [
+      { name: "Bloomberg Terminal", icon: "Monitor" },
+      { name: "FactSet", icon: "BarChart3" },
+      { name: "Excel", icon: "Table" },
+      { name: "Financial Modeling", icon: "Calculator" },
+    ],
+  },
+];
+
 export const aboutText = {
   intro: "Looking for internship opportunities in finance and tech. Open to connecting about projects, markets, or new opportunities.",
 };

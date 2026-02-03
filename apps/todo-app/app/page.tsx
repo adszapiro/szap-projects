@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, Todo } from "@/lib/supabase";
+import toast, { Toaster } from "react-hot-toast";
 
 const categoryConfig = {
   personal: { bg: "bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", border: "border-violet-500/20" },
@@ -9,6 +10,35 @@ const categoryConfig = {
   shopping: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/20" },
   other: { bg: "bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", border: "border-slate-500/20" },
 };
+
+// Highlight matching text in search results
+function HighlightedText({ text, searchQuery }: { text: string; searchQuery: string }) {
+  if (!searchQuery.trim()) {
+    return <>{text}</>;
+  }
+
+  const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escapedQuery})`, "gi");
+  const parts = text.split(regex);
+  const queryLower = searchQuery.toLowerCase();
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === queryLower ? (
+          <mark
+            key={index}
+            className="bg-yellow-300 dark:bg-yellow-500/40 text-inherit rounded px-0.5"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
 
 // Sample todos for first-time visitors to see the app in action
 const getSampleTodos = (): Todo[] => {
@@ -74,10 +104,21 @@ export default function TodoApp() {
   const [inputText, setInputText] = useState("");
   const [category, setCategory] = useState<Todo["category"]>("work");
   const [dueDate, setDueDate] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "completed" | "email">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "email">("all");
   const [showingSamples, setShowingSamples] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  
+  // Refs for focus management
+  const inputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const fetchTodos = async () => {
     try {
@@ -173,9 +214,13 @@ export default function TodoApp() {
 
     if (error) {
       console.error("Error adding todo:", error);
+      toast.error("Failed to add task");
     } else {
       setInputText("");
       setDueDate("");
+      toast.success("Task added");
+      // Auto-focus input after adding
+      setTimeout(() => inputRef.current?.focus(), 0);
       if (typeof window !== "undefined") {
         localStorage.setItem("todo-app-has-data", "true");
       }
@@ -190,6 +235,7 @@ export default function TodoApp() {
           todo.id === id ? { ...todo, completed: !completed } : todo
         )
       );
+      toast.success(completed ? "Task reopened" : "Task completed");
       return;
     }
     
@@ -200,6 +246,9 @@ export default function TodoApp() {
 
     if (error) {
       console.error("Error updating todo:", error);
+      toast.error("Failed to update task");
+    } else {
+      toast.success(completed ? "Task reopened" : "Task completed");
     }
   };
 
@@ -207,6 +256,7 @@ export default function TodoApp() {
     // Handle sample todos (not in database)
     if (id.startsWith("sample-")) {
       setTodos((prev) => prev.filter((todo) => todo.id !== id));
+      toast.success("Task deleted");
       return;
     }
     
@@ -217,7 +267,10 @@ export default function TodoApp() {
 
     if (error) {
       console.error("Error deleting todo:", error);
+      toast.error("Failed to delete task");
       fetchTodos(); // Refetch if error
+    } else {
+      toast.success("Task deleted");
     }
   };
 
@@ -247,7 +300,92 @@ export default function TodoApp() {
     setShowingSamples(false);
   };
 
+  // Edit functionality
+  const startEditing = useCallback((id: string, currentText: string) => {
+    setEditingId(id);
+    setEditText(currentText);
+    // Focus the edit input after render
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingId(null);
+    setEditText("");
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!editingId || editText.trim() === "") {
+      cancelEditing();
+      return;
+    }
+
+    const trimmedText = editText.trim();
+    const originalTodo = todos.find((t) => t.id === editingId);
+    
+    // No change - just cancel
+    if (originalTodo?.text === trimmedText) {
+      cancelEditing();
+      return;
+    }
+
+    // Handle sample todos (not in database)
+    if (editingId.startsWith("sample-")) {
+      setTodos((prev) =>
+        prev.map((todo) =>
+          todo.id === editingId ? { ...todo, text: trimmedText } : todo
+        )
+      );
+      toast.success("Task updated");
+      cancelEditing();
+      return;
+    }
+
+    // Optimistic update
+    setTodos((prev) =>
+      prev.map((todo) =>
+        todo.id === editingId ? { ...todo, text: trimmedText } : todo
+      )
+    );
+
+    const { error } = await supabase
+      .from("todos")
+      .update({ text: trimmedText })
+      .eq("id", editingId);
+
+    if (error) {
+      console.error("Error updating todo:", error);
+      toast.error("Failed to update task");
+      fetchTodos(); // Revert on error
+    } else {
+      toast.success("Task updated");
+    }
+
+    cancelEditing();
+  }, [editingId, editText, todos, cancelEditing]);
+
+  // Handle keyboard events for edit input
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveEdit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEditing();
+      }
+    },
+    [saveEdit, cancelEditing]
+  );
+
   const filteredTodos = todos.filter((todo) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      if (!todo.text.toLowerCase().includes(query)) {
+        return false;
+      }
+    }
+    
     // Status filter
     if (filter === "active" && todo.completed) return false;
     if (filter === "completed" && !todo.completed) return false;
@@ -260,7 +398,6 @@ export default function TodoApp() {
   });
 
   const activeTodoCount = todos.filter((todo) => !todo.completed).length;
-  const emailTodoCount = todos.filter((todo) => todo.source === "email" && !todo.completed).length;
 
   // Safe date parsing that handles both YYYY-MM-DD and ISO formats
   const parseDate = (dateString: string): Date => {
@@ -302,6 +439,32 @@ export default function TodoApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      {/* Toast notifications */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: "rgb(30 41 59)",
+            color: "#fff",
+            borderRadius: "0.75rem",
+            border: "1px solid rgb(51 65 85)",
+          },
+          success: {
+            iconTheme: {
+              primary: "#22c55e",
+              secondary: "#fff",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#ef4444",
+              secondary: "#fff",
+            },
+          },
+        }}
+      />
+
       {/* Decorative background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl" />
@@ -311,15 +474,11 @@ export default function TodoApp() {
       <div className="relative max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <header className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full mb-4">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-xs font-medium text-green-600 dark:text-green-400">Email Integration Active</span>
-          </div>
           <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 dark:from-white dark:via-blue-200 dark:to-white bg-clip-text text-transparent mb-2">
             Task Manager
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            {activeTodoCount} active • {emailTodoCount} from email
+            {activeTodoCount} active task{activeTodoCount !== 1 ? "s" : ""}
           </p>
         </header>
 
@@ -352,6 +511,7 @@ export default function TodoApp() {
           <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 p-4">
             <div className="flex gap-3 mb-3">
               <input
+                ref={inputRef}
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -429,6 +589,47 @@ export default function TodoApp() {
           </div>
         </div>
 
+        {/* Search Input */}
+        <div className="mb-6">
+          <div className="relative">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tasks..."
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur border border-slate-200/50 dark:border-slate-700/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Found {filteredTodos.length} result{filteredTodos.length !== 1 ? "s" : ""} for "{searchQuery}"
+            </p>
+          )}
+        </div>
+
         {/* Todo List */}
         <div className="space-y-3">
           {loading ? (
@@ -480,11 +681,34 @@ export default function TodoApp() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-slate-900 dark:text-white leading-relaxed ${
-                      todo.completed ? "line-through text-slate-400 dark:text-slate-500" : ""
-                    }`}>
-                      {todo.text}
-                    </p>
+                    {editingId === todo.id ? (
+                      /* Inline Edit Mode */
+                      <div className="flex gap-2">
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={handleEditKeyDown}
+                          onBlur={saveEdit}
+                          className="flex-1 px-3 py-1.5 -ml-3 -my-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 border border-blue-500 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      /* View Mode - Click to edit */
+                      <p
+                        onClick={() => !todo.completed && startEditing(todo.id, todo.text)}
+                        className={`text-slate-900 dark:text-white leading-relaxed ${
+                          todo.completed 
+                            ? "line-through text-slate-400 dark:text-slate-500" 
+                            : "cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                        }`}
+                        title={!todo.completed ? "Click to edit" : undefined}
+                      >
+                        <HighlightedText text={todo.text} searchQuery={searchQuery} />
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-md font-medium ${categoryConfig[todo.category].bg} ${categoryConfig[todo.category].text}`}>
                         {todo.category}
@@ -509,15 +733,31 @@ export default function TodoApp() {
                     </div>
                   </div>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => deleteTodo(todo.id)}
-                    className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1">
+                    {/* Edit Button */}
+                    {!todo.completed && editingId !== todo.id && (
+                      <button
+                        onClick={() => startEditing(todo.id, todo.text)}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title="Edit task"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        </svg>
+                      </button>
+                    )}
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => deleteTodo(todo.id)}
+                      className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                      title="Delete task"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

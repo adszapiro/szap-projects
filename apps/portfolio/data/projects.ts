@@ -7,6 +7,11 @@ export interface ProjectLink {
   url: string;
 }
 
+export interface ProjectBadge {
+  label: string;
+  variant: "primary" | "secondary" | "accent";
+}
+
 export interface Project {
   title: string;
   description: string;
@@ -16,6 +21,9 @@ export interface Project {
   status: "live" | "coming-soon" | "in-progress";
   tier: "featured" | "standard";
   repo?: string;
+  badges?: ProjectBadge[];
+  icon?: string;
+  gradient?: string;
 }
 
 export const projects: Project[] = [
@@ -27,6 +35,13 @@ export const projects: Project[] = [
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects/tree/main/apps/quant-agent",
+    badges: [
+      { label: "55+ Strategies", variant: "primary" },
+      { label: "AI-Powered", variant: "accent" },
+      { label: "Real-time", variant: "secondary" },
+    ],
+    icon: "Bot",
+    gradient: "from-purple-500/20 to-blue-500/20",
   },
   {
     title: "ResumeAI",
@@ -36,6 +51,13 @@ export const projects: Project[] = [
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
+    badges: [
+      { label: "GPT-4", variant: "accent" },
+      { label: "PDF Upload", variant: "secondary" },
+      { label: "ATS Optimization", variant: "primary" },
+    ],
+    icon: "FileText",
+    gradient: "from-emerald-500/20 to-teal-500/20",
   },
   {
     title: "Task Manager",
@@ -45,6 +67,12 @@ export const projects: Project[] = [
     status: "live",
     tier: "featured",
     repo: "https://github.com/adszapiro/szap-projects",
+    badges: [
+      { label: "Full-Stack", variant: "primary" },
+      { label: "Real-time Sync", variant: "secondary" },
+    ],
+    icon: "CheckSquare",
+    gradient: "from-orange-500/20 to-amber-500/20",
   },
 ];
 

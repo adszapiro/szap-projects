@@ -38,3 +38,181 @@ body {
   background: var(--accent);
   color: var(--bg);
 }
+
+/* Skeleton loading animation */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e8e8e8 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: 0.5em;
+}
+
+.skeleton-text:last-child {
+  width: 60%;
+}
+
+/* Fade-in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.fade-in-delay-1 {
+  animation: fade-in 0.4s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.fade-in-delay-2 {
+  animation: fade-in 0.4s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.fade-in-delay-3 {
+  animation: fade-in 0.4s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+/* Progress ring animation */
+@keyframes progress-ring-fill {
+  from {
+    stroke-dashoffset: 251;
+  }
+}
+
+.progress-ring-animated {
+  animation: progress-ring-fill 1s ease-out forwards;
+}
+
+/* Gradient progress ring colors */
+.gradient-excellent {
+  stroke: url(#gradient-excellent);
+}
+
+.gradient-good {
+  stroke: url(#gradient-good);
+}
+
+.gradient-moderate {
+  stroke: url(#gradient-moderate);
+}
+
+.gradient-poor {
+  stroke: url(#gradient-poor);
+}
+
+/* Mini progress bar */
+.mini-progress-track {
+  background: #e5e5e5;
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.mini-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease-out;
+}
+
+/* Pulse animation for loading */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Timeout countdown ring */
+@keyframes countdown-ring {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 251;
+  }
+}
+
+.countdown-ring {
+  animation: countdown-ring linear forwards;
+}
+
+/* Copy button success animation */
+@keyframes copy-success {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.copy-success {
+  animation: copy-success 0.3s ease-out;
+}
+
+/* Checklist checkbox animation */
+@keyframes checkbox-check {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkbox-animated path {
+  stroke-dasharray: 24;
+  animation: checkbox-check 0.3s ease-out forwards;
+}
+
+/* Character counter styles */
+.char-counter {
+  font-size: 0.75rem;
+  transition: color 0.2s ease;
+}
+
+.char-counter.warning {
+  color: var(--warning);
+}
+
+.char-counter.danger {
+  color: var(--error);
+}
