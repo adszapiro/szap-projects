@@ -253,59 +253,65 @@ export function getTSMOMStrategyCode(config: Partial<TSMOMConfig> = {}): string 
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   return `
-// Moskowitz-Ooi-Pedersen Time-Series Momentum
+// Moskowitz-Ooi-Pedersen Time-Series Momentum (AGGRESSIVE PAPER TRADING)
 // Lookbacks: ${cfg.lookbackPeriods.join(", ")} days | Target Vol: ${cfg.targetVolatility * 100}%
 
 function generateSignal(data, position) {
   const prices = data.close;
   const len = prices.length;
-  
-  if (len < 260) {
+
+  // Reduced data requirement for more trades
+  if (len < 50) {
     return { type: "hold", confidence: 0, reason: "TSMOM: Insufficient data" };
   }
-  
-  // Calculate momentum for each lookback
-  const lookbacks = [${cfg.lookbackPeriods.join(", ")}];
+
+  // Use shorter lookbacks if we don't have enough data
+  const availableLookbacks = [21, 63, 126, 252].filter(lb => len > lb + 1);
+  if (availableLookbacks.length === 0) {
+    return { type: "hold", confidence: 0, reason: "TSMOM: Need more data" };
+  }
+
   let signalSum = 0;
   const details = [];
-  
-  for (const lb of lookbacks) {
+
+  for (const lb of availableLookbacks) {
     const ret = (prices[len - 1] - prices[len - lb - 1]) / prices[len - lb - 1];
     const sig = ret > 0 ? 1 : -1;
     signalSum += sig;
     details.push(lb + "d:" + (ret > 0 ? "+" : "-"));
   }
-  
-  const avgSignal = signalSum / lookbacks.length;
-  const agreement = Math.abs(signalSum) / lookbacks.length;
-  
+
+  const avgSignal = signalSum / availableLookbacks.length;
+  const agreement = Math.abs(signalSum) / availableLookbacks.length;
+
   // Calculate volatility for position scaling
+  const volWindow = Math.min(60, len - 1);
   const returns = [];
-  for (let i = len - 60; i < len; i++) {
+  for (let i = len - volWindow; i < len; i++) {
     returns.push((prices[i] - prices[i-1]) / prices[i-1]);
   }
   const vol = Math.sqrt(returns.reduce((a, b) => a + b * b, 0) / returns.length) * Math.sqrt(252);
   const volScale = Math.min(${cfg.targetVolatility} / vol, ${cfg.maxLeverage}).toFixed(2);
-  
-  // Go long on positive momentum
-  if (avgSignal > 0.3 && !position) {
-    const conf = Math.min(0.5 + agreement * 0.3, 0.85);
+
+  // Go long on ANY positive momentum (lowered threshold for paper trading)
+  if (avgSignal > 0 && !position) {
+    const conf = Math.min(0.4 + agreement * 0.4, 0.9);
     return { type: "buy", confidence: conf, reason: "TSMOM: " + details.join(", ") + " [" + volScale + "x]" };
   }
-  
+
   // Exit on negative momentum
-  if (avgSignal < -0.3 && position) {
+  if (avgSignal < 0 && position) {
     return { type: "sell", confidence: 0.8, reason: "TSMOM Exit: " + details.join(", ") };
   }
-  
+
   // Position management
   if (position) {
     const pnl = ((prices[len-1] - position.avgEntryPrice) / position.avgEntryPrice) * 100;
-    if (pnl > 8 && avgSignal < 0.2) return { type: "sell", confidence: 0.75, reason: "TSMOM Profit: +" + pnl.toFixed(1) + "%" };
-    if (pnl < -6) return { type: "sell", confidence: 0.85, reason: "TSMOM Stop: " + pnl.toFixed(1) + "%" };
+    if (pnl > 5 && avgSignal < 0.3) return { type: "sell", confidence: 0.75, reason: "TSMOM Profit: +" + pnl.toFixed(1) + "%" };
+    if (pnl < -4) return { type: "sell", confidence: 0.85, reason: "TSMOM Stop: " + pnl.toFixed(1) + "%" };
   }
-  
-  return { type: "hold", confidence: 0.4, reason: "TSMOM: " + details.join(", ") };
+
+  return { type: "hold", confidence: 0.3, reason: "TSMOM: " + details.join(", ") };
 }`;
 }
 

@@ -269,57 +269,57 @@ export function getFFStrategyCode(config: Partial<FFConfig> = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   return `
-// Fama-French 5-Factor Strategy
+// Fama-French 5-Factor Strategy (AGGRESSIVE PAPER TRADING)
 // Tilts: Size=${cfg.sizeTilt}, Value=${cfg.valueTilt}, Quality=${cfg.qualityTilt}
 
 function generateSignal(data, position) {
   const prices = data.close;
   const len = prices.length;
-  
-  if (len < 60) {
+
+  if (len < 25) {
     return { type: "hold", confidence: 0, reason: "FF: Insufficient data" };
   }
-  
+
   // Calculate simple factor proxies from price data
+  const window = Math.min(60, len - 1);
   const returns = [];
-  for (let i = len - 60; i < len; i++) {
+  for (let i = len - window; i < len; i++) {
     returns.push((prices[i] - prices[i-1]) / prices[i-1]);
   }
-  
+
   const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
   const volatility = Math.sqrt(returns.reduce((a, b) => a + b * b, 0) / returns.length);
   const sharpe = volatility > 0 ? (avgReturn * 252) / (volatility * Math.sqrt(252)) : 0;
-  
-  // Calculate momentum as quality proxy
-  const mom60 = (prices[len-1] - prices[len-61]) / prices[len-61];
-  
-  // Factor-based signal
-  // High Sharpe + positive momentum = quality factor
-  // Low volatility = investment factor
-  const qualityScore = sharpe * 0.5 + (mom60 > 0 ? 0.3 : -0.1);
-  
-  // Entry signal
-  if (!position && qualityScore > 0.3) {
-    const conf = Math.min(0.5 + qualityScore * 0.3, 0.85);
-    return { 
-      type: "buy", 
-      confidence: conf, 
+
+  // Calculate momentum as quality proxy (use available window)
+  const momWindow = Math.min(60, len - 1);
+  const mom = (prices[len-1] - prices[len - momWindow]) / prices[len - momWindow];
+
+  // Factor-based signal (more aggressive)
+  const qualityScore = sharpe * 0.5 + (mom > 0 ? 0.4 : -0.1);
+
+  // Entry signal (lowered threshold)
+  if (!position && qualityScore > 0.1) {
+    const conf = Math.min(0.4 + qualityScore * 0.4, 0.9);
+    return {
+      type: "buy",
+      confidence: conf,
       reason: "FF Factor: Quality=" + qualityScore.toFixed(2) + " Sharpe=" + sharpe.toFixed(2)
     };
   }
-  
+
   // Exit on deteriorating quality
-  if (position && qualityScore < 0) {
+  if (position && qualityScore < -0.1) {
     return { type: "sell", confidence: 0.75, reason: "FF Factor: Quality deteriorating" };
   }
-  
-  // Position management
+
+  // Position management (tighter stops for paper trading)
   if (position) {
     const pnl = ((prices[len-1] - position.avgEntryPrice) / position.avgEntryPrice) * 100;
-    if (pnl > 12) return { type: "sell", confidence: 0.7, reason: "FF Profit: +" + pnl.toFixed(1) + "%" };
-    if (pnl < -8) return { type: "sell", confidence: 0.85, reason: "FF Stop: " + pnl.toFixed(1) + "%" };
+    if (pnl > 8) return { type: "sell", confidence: 0.7, reason: "FF Profit: +" + pnl.toFixed(1) + "%" };
+    if (pnl < -5) return { type: "sell", confidence: 0.85, reason: "FF Stop: " + pnl.toFixed(1) + "%" };
   }
-  
-  return { type: "hold", confidence: 0.4, reason: "FF Factor: Quality=" + qualityScore.toFixed(2) };
+
+  return { type: "hold", confidence: 0.3, reason: "FF Factor: Quality=" + qualityScore.toFixed(2) };
 }`;
 }

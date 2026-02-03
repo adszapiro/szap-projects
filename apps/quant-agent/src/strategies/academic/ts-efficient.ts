@@ -223,62 +223,68 @@ export function getTSEfficientStrategyCode(config: Partial<TSEfficientConfig> = 
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   return `
-// Time-Series Efficient Factors (Ehsani & Linnainmaa 2025)
+// Time-Series Efficient Factors (AGGRESSIVE PAPER TRADING)
 // Momentum lookback: ${cfg.factorMomentumLookback}d, Target vol: ${cfg.targetVolatility * 100}%
 
 function generateSignal(data, position) {
   const prices = data.close;
   const len = prices.length;
-  
-  if (len < ${cfg.factorMomentumLookback + cfg.volLookback}) {
+
+  // Reduced data requirement
+  if (len < 30) {
     return { type: "hold", confidence: 0, reason: "TSEF: Insufficient data" };
   }
-  
+
   // Calculate returns
   const returns = [];
   for (let i = 1; i < len; i++) {
     returns.push((prices[i] - prices[i-1]) / prices[i-1]);
   }
-  
-  // Factor momentum (6-month lookback)
-  const momReturns = returns.slice(-${cfg.factorMomentumLookback});
+
+  // Adaptive lookbacks based on available data
+  const momLookback = Math.min(${cfg.factorMomentumLookback}, len - 5);
+  const volLookback = Math.min(${cfg.volLookback}, len - 1);
+
+  // Factor momentum
+  const momReturns = returns.slice(-momLookback);
   const totalMom = momReturns.reduce((a, b) => a + b, 0);
-  const momFilter = totalMom > 0 ? 1 : 0;
-  
-  // Volatility scaling (1-month lookback)
-  const volReturns = returns.slice(-${cfg.volLookback});
+  const momFilter = totalMom > 0 ? 1 : 0.5; // More permissive
+
+  // Volatility scaling
+  const volReturns = returns.slice(-volLookback);
   const vol = Math.sqrt(volReturns.reduce((a, b) => a + b * b, 0) / volReturns.length) * Math.sqrt(252);
   const volScale = Math.max(${cfg.minLeverage}, Math.min(${cfg.maxLeverage}, ${cfg.targetVolatility} / vol));
-  
-  // Base signal from recent momentum
-  const recentMom = (prices[len-1] - prices[len-22]) / prices[len-22];
+
+  // Base signal from recent momentum (adaptive window)
+  const recentWindow = Math.min(22, len - 1);
+  const recentMom = (prices[len-1] - prices[len - recentWindow]) / prices[len - recentWindow];
   const rawSignal = recentMom > 0 ? 1 : -1;
-  
+
   // Combined signal
   const finalSignal = rawSignal * momFilter * ${cfg.momentumWeight} + rawSignal * volScale * ${cfg.volMgmtWeight};
-  const conf = Math.min(0.5 + Math.abs(finalSignal) * 0.3, 0.85);
-  
-  // Entry
-  if (!position && finalSignal > 0.3) {
+  const conf = Math.min(0.4 + Math.abs(finalSignal) * 0.4, 0.9);
+
+  // Entry (lowered threshold)
+  if (!position && finalSignal > 0.1) {
     return { type: "buy", confidence: conf, reason: "TSEF: signal=" + finalSignal.toFixed(2) + " vol=" + volScale.toFixed(2) + "x" };
   }
-  
+
   // Exit
-  if (position && finalSignal < -0.3) {
+  if (position && finalSignal < -0.1) {
     return { type: "sell", confidence: 0.8, reason: "TSEF Exit: signal=" + finalSignal.toFixed(2) };
   }
-  
-  // Position management
+
+  // Position management (tighter for paper trading)
   if (position) {
     const pnl = ((prices[len-1] - position.avgEntryPrice) / position.avgEntryPrice) * 100;
-    const dynStop = vol > 0.3 ? -4 : -6;  // Tighter stop in high vol
-    const dynTarget = vol > 0.3 ? 6 : 10;
-    
+    const dynStop = vol > 0.3 ? -3 : -5;
+    const dynTarget = vol > 0.3 ? 5 : 8;
+
     if (pnl > dynTarget) return { type: "sell", confidence: 0.75, reason: "TSEF Profit: +" + pnl.toFixed(1) + "%" };
     if (pnl < dynStop) return { type: "sell", confidence: 0.85, reason: "TSEF Stop: " + pnl.toFixed(1) + "%" };
   }
-  
-  return { type: "hold", confidence: 0.4, reason: "TSEF: signal=" + finalSignal.toFixed(2) };
+
+  return { type: "hold", confidence: 0.3, reason: "TSEF: signal=" + finalSignal.toFixed(2) };
 }`;
 }
 

@@ -211,8 +211,8 @@ export async function runStockTournament(): Promise<TournamentResult> {
   const soldSymbols = new Set<string>();
   const boughtSymbols = new Set<string>();
   
-  // Epsilon-greedy exploration: 10% chance to allow lower confidence trades
-  const EPSILON = 0.1;
+  // Epsilon-greedy exploration: 25% chance to allow lower confidence trades (aggressive paper trading)
+  const EPSILON = 0.25;
   
   // Run each strategy
   for (const strategy of strategies) {
@@ -322,8 +322,8 @@ export async function runStockTournament(): Promise<TournamentResult> {
           allocation,
         });
         
-        // Execute trade if confidence threshold met (0.25 for broader exploration)
-        const CONFIDENCE_THRESHOLD = 0.25;
+        // Execute trade if confidence threshold met (0.15 for aggressive paper trading)
+        const CONFIDENCE_THRESHOLD = 0.15;
         let tradeExecuted = false;
         let tradeId: string | undefined;
         
@@ -493,8 +493,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
   const accountData = await getSimulatedAccountValue();
   const accountValue = accountData.totalValue;
   
-  // Epsilon-greedy exploration: 10% chance to allow lower confidence trades
-  const EPSILON = 0.1;
+  // Epsilon-greedy exploration: 25% chance to allow lower confidence trades (aggressive paper trading)
+  const EPSILON = 0.25;
   
   // Run each strategy
   for (const strategy of strategies) {
@@ -587,8 +587,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           allocation,
         });
         
-        // Execute trade if confidence threshold met (0.25 for broader exploration)
-        const CONFIDENCE_THRESHOLD = 0.25;
+        // Execute trade if confidence threshold met (0.15 for aggressive paper trading)
+        const CONFIDENCE_THRESHOLD = 0.15;
         let tradeExecuted = false;
         let tradeId: string | undefined;
         

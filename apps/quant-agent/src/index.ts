@@ -429,8 +429,8 @@ async function executeStrategies(
             
             if (signal.type === "buy" && !simPosition) {
               try {
-                // 15% position size for more active trading
-                const qty = await calculateSimulatedPositionSize(symbol, 15);
+                // 25% position size for aggressive paper trading
+                const qty = await calculateSimulatedPositionSize(symbol, 25);
                 if (qty > 0) {
                   const result = await placeSimulatedOrder({
                     symbol,
@@ -478,9 +478,9 @@ async function executeStrategies(
               }
             }
           } else {
-            // Real trading (stocks or available crypto)
+            // Real trading (stocks or available crypto) - aggressive paper trading
             if (signal.type === "buy" && !positionInfo) {
-              const qty = await calculatePositionSize(symbol, 10);
+              const qty = await calculatePositionSize(symbol, 20);
               if (qty > 0) {
                 await placeOrder({
                   symbol,

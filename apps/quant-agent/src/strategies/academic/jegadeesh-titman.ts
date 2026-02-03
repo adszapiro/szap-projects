@@ -177,64 +177,70 @@ export function getJTStrategyCode(config: Partial<JTConfig> = {}): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   
   return `
-// Jegadeesh-Titman Cross-Sectional Momentum
+// Jegadeesh-Titman Cross-Sectional Momentum (AGGRESSIVE PAPER TRADING)
 // Lookback: ${cfg.lookbackPeriod} days, Top: ${cfg.topDecile * 100}%
 
 function generateSignal(data, position) {
   const prices = data.close;
   const len = prices.length;
-  
-  if (len < ${cfg.lookbackPeriod + 21}) {
+
+  // Reduced data requirement
+  if (len < 30) {
     return { type: "hold", confidence: 0, reason: "Insufficient data for JT momentum" };
   }
-  
-  // Calculate momentum (skip recent 21 days to avoid reversal)
-  const startIdx = len - ${cfg.lookbackPeriod} - 21;
-  const endIdx = len - 21;
+
+  // Adaptive lookback based on available data
+  const skipDays = Math.min(21, Math.floor(len / 4));
+  const lookback = Math.min(${cfg.lookbackPeriod}, len - skipDays - 1);
+
+  // Calculate momentum (skip recent days to avoid reversal)
+  const startIdx = len - lookback - skipDays;
+  const endIdx = len - skipDays;
   const momentum = (prices[endIdx] - prices[startIdx]) / prices[startIdx];
-  
+
   // Calculate volatility for position sizing
+  const volWindow = Math.min(${cfg.lookbackPeriod}, len - 1);
   const returns = [];
-  for (let i = len - ${cfg.lookbackPeriod}; i < len; i++) {
+  for (let i = len - volWindow; i < len; i++) {
     returns.push((prices[i] - prices[i-1]) / prices[i-1]);
   }
   const vol = Math.sqrt(returns.reduce((a, b) => a + b * b, 0) / returns.length) * Math.sqrt(252);
-  
-  // Entry: Strong positive momentum
-  if (!position && momentum > 0.1) {
-    const confidence = Math.min(0.5 + momentum * 2, 0.85);
-    return { 
-      type: "buy", 
+
+  // Entry: ANY positive momentum (lowered from 0.1)
+  if (!position && momentum > 0.02) {
+    const confidence = Math.min(0.4 + momentum * 3, 0.9);
+    return {
+      type: "buy",
       confidence,
       reason: "JT Momentum: " + (momentum * 100).toFixed(1) + "% trailing return"
     };
   }
-  
+
   // Exit: Momentum turned negative
-  if (position && momentum < 0) {
-    return { 
-      type: "sell", 
+  if (position && momentum < -0.02) {
+    return {
+      type: "sell",
       confidence: 0.8,
       reason: "JT Momentum: Turned negative (" + (momentum * 100).toFixed(1) + "%)"
     };
   }
-  
+
   // Hold with position
   if (position) {
     const currentPrice = prices[len - 1];
     const pnl = ((currentPrice - position.avgEntryPrice) / position.avgEntryPrice) * 100;
-    
-    // Take profit at 10%
-    if (pnl > 10) {
+
+    // Take profit at 7% (tighter for more trades)
+    if (pnl > 7) {
       return { type: "sell", confidence: 0.75, reason: "JT Profit target: +" + pnl.toFixed(1) + "%" };
     }
-    // Stop loss at 5%
-    if (pnl < -5) {
+    // Stop loss at 4% (tighter)
+    if (pnl < -4) {
       return { type: "sell", confidence: 0.9, reason: "JT Stop loss: " + pnl.toFixed(1) + "%" };
     }
   }
-  
-  return { type: "hold", confidence: 0.4, reason: "JT Momentum: " + (momentum * 100).toFixed(1) + "%" };
+
+  return { type: "hold", confidence: 0.3, reason: "JT Momentum: " + (momentum * 100).toFixed(1) + "%" };
 }`;
 }
 
