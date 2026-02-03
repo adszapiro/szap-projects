@@ -146,21 +146,33 @@ export default function QuantDashboard() {
   const metrics = useMemo(() => {
     const portfolioValue = 100000;
     const totalTrades = trades.length;
-    const winningTrades = trades.filter(t => t.pnl && t.pnl > 0).length;
-    const losingTrades = trades.filter(t => t.pnl && t.pnl < 0).length;
+    const winningTradesArr = trades.filter(t => t.pnl && t.pnl > 0);
+    const losingTradesArr = trades.filter(t => t.pnl && t.pnl < 0);
+    const winningTrades = winningTradesArr.length;
+    const losingTrades = losingTradesArr.length;
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
     const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const pnlPercent = (totalPnL / portfolioValue) * 100;
     
-    // Calculate Sharpe-like ratio (simplified)
+    // Calculate returns for risk metrics
     const returns = trades.filter(t => t.pnl).map(t => (t.pnl || 0) / portfolioValue);
     const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
     const stdDev = returns.length > 1 
       ? Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length)
       : 0;
-    const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0;
+    
+    // Sharpe Ratio (annualized)
+    const dailyRiskFree = 0.05 / 252; // 5% annual risk-free rate
+    const sharpeRatio = stdDev > 0 ? ((avgReturn - dailyRiskFree) / stdDev) * Math.sqrt(252) : 0;
+    
+    // Sortino Ratio (downside deviation only)
+    const downsideReturns = returns.filter(r => r < 0);
+    const downsideStdDev = downsideReturns.length > 0
+      ? Math.sqrt(downsideReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / downsideReturns.length)
+      : 0;
+    const sortinoRatio = downsideStdDev > 0 ? ((avgReturn - dailyRiskFree) / downsideStdDev) * Math.sqrt(252) : 0;
 
-    // Max drawdown (simplified)
+    // Max drawdown
     let peak = portfolioValue;
     let maxDrawdown = 0;
     let runningValue = portfolioValue;
@@ -170,6 +182,20 @@ export default function QuantDashboard() {
       const drawdown = (peak - runningValue) / peak * 100;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;
     });
+
+    // Profit Factor: Total Wins / Total Losses
+    const totalWins = winningTradesArr.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const totalLosses = Math.abs(losingTradesArr.reduce((sum, t) => sum + (t.pnl || 0), 0));
+    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
+    
+    // Average Win/Loss
+    const avgWin = winningTrades > 0 ? totalWins / winningTrades : 0;
+    const avgLoss = losingTrades > 0 ? totalLosses / losingTrades : 0;
+    
+    // Expectancy
+    const winProb = totalTrades > 0 ? winningTrades / totalTrades : 0;
+    const lossProb = 1 - winProb;
+    const expectancy = (winProb * avgWin) - (lossProb * avgLoss);
 
     // Today's stats
     const today = new Date().toISOString().split('T')[0];
@@ -185,7 +211,12 @@ export default function QuantDashboard() {
       losingTrades,
       winRate,
       sharpeRatio,
+      sortinoRatio,
       maxDrawdown,
+      profitFactor,
+      avgWin,
+      avgLoss,
+      expectancy,
       todayTrades: todayTrades.length,
       todayPnL,
     };
@@ -381,7 +412,8 @@ export default function QuantDashboard() {
 
       {/* Key Metrics Bar */}
       <div className="border-b border-gray-800/50 bg-[#0d0d14]/50">
-        <div className="max-w-[1600px] mx-auto px-6 py-4">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-4">
+          {/* Primary Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
             <MetricCard
               label="Portfolio"
@@ -416,6 +448,7 @@ export default function QuantDashboard() {
               label="Sharpe Ratio"
               value={metrics.sharpeRatio.toFixed(2)}
               isPositive={metrics.sharpeRatio > 0}
+              subtext="Risk-adjusted"
             />
             <MetricCard
               label="Max Drawdown"
@@ -427,6 +460,42 @@ export default function QuantDashboard() {
               value={`${((tournamentStats?.averageWinRate || 0.5) * 100).toFixed(1)}%`}
               subtext="Thompson Sampling"
               isPositive={(tournamentStats?.averageWinRate || 0.5) >= 0.5}
+            />
+          </div>
+          {/* Risk Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 pt-2 border-t border-gray-800/30">
+            <MetricCard
+              label="Sortino Ratio"
+              value={metrics.sortinoRatio.toFixed(2)}
+              isPositive={metrics.sortinoRatio > 0}
+              subtext="Downside risk"
+            />
+            <MetricCard
+              label="Profit Factor"
+              value={metrics.profitFactor === Infinity ? "∞" : metrics.profitFactor.toFixed(2)}
+              isPositive={metrics.profitFactor > 1}
+              subtext="Wins / Losses"
+            />
+            <MetricCard
+              label="Avg Win"
+              value={formatCurrency(metrics.avgWin)}
+              isPositive={true}
+            />
+            <MetricCard
+              label="Avg Loss"
+              value={formatCurrency(metrics.avgLoss)}
+              isPositive={false}
+            />
+            <MetricCard
+              label="Expectancy"
+              value={formatCurrency(metrics.expectancy)}
+              isPositive={metrics.expectancy > 0}
+              subtext="Per trade"
+            />
+            <MetricCard
+              label="Strategies Active"
+              value={strategies.filter(s => s.status === "deployed").length.toString()}
+              subtext={`${strategies.filter(s => s.status === "paused").length} paused`}
             />
           </div>
         </div>
