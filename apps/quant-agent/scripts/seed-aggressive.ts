@@ -14,7 +14,7 @@ const supabase = createClient(
 );
 
 // AGGRESSIVE strategies designed to trade frequently
-const STRATEGIES = [
+const CRYPTO_STRATEGIES = [
   {
     name: "Aggressive RSI Trader",
     description: "Buys on RSI < 55, sells on RSI > 50 with position",
@@ -182,21 +182,95 @@ function generateSignal(data, position) {
   },
 ];
 
-async function seedStrategies() {
-  console.log("Deactivating old strategies and seeding aggressive ones...\n");
+// AGGRESSIVE STOCK strategies
+const STOCK_STRATEGIES = [
+  {
+    name: "SPY Momentum Rider",
+    description: "Rides SPY momentum aggressively",
+    asset_class: "stock",
+    symbols: ["SPY"],
+    code: `
+function generateSignal(data, position) {
+  const len = data.close.length;
+  const price = data.close[len - 1];
+  const prevPrice = data.close[len - 2];
+  const change = ((price - prevPrice) / prevPrice) * 100;
+  const rsi = RSI(data.close, 10);
+  const currentRSI = rsi[len - 1];
 
-  // Deactivate all existing strategies
-  const { error: deactivateError } = await supabase
-    .from("strategies")
-    .update({ status: "inactive" })
-    .eq("status", "deployed");
-
-  if (deactivateError) {
-    console.log("Note:", deactivateError.message);
-  } else {
-    console.log("✅ Deactivated old strategies");
+  if (!position && change > 0.05 && currentRSI < 65) {
+    return { type: "buy", confidence: 0.7, reason: "SPY momentum: +" + change.toFixed(2) + "%" };
   }
 
+  if (position) {
+    const pnl = ((price - position.avgEntryPrice) / position.avgEntryPrice) * 100;
+    if (pnl > 1.5) return { type: "sell", confidence: 0.8, reason: "Take profit: +" + pnl.toFixed(1) + "%" };
+    if (pnl < -1) return { type: "sell", confidence: 0.9, reason: "Stop: " + pnl.toFixed(1) + "%" };
+    if (currentRSI > 70) return { type: "sell", confidence: 0.75, reason: "RSI overbought" };
+  }
+
+  return { type: "hold", confidence: 0.3, reason: "SPY: " + change.toFixed(2) + "%" };
+}`,
+  },
+  {
+    name: "QQQ Tech Trader",
+    description: "Aggressive QQQ trading",
+    asset_class: "stock",
+    symbols: ["QQQ"],
+    code: `
+function generateSignal(data, position) {
+  const len = data.close.length;
+  const price = data.close[len - 1];
+  const ema8 = EMA(data.close, 8);
+  const ema = ema8[len - 1];
+
+  if (!position && price > ema * 1.001) {
+    return { type: "buy", confidence: 0.72, reason: "QQQ above EMA8" };
+  }
+
+  if (position) {
+    const pnl = ((price - position.avgEntryPrice) / position.avgEntryPrice) * 100;
+    if (pnl > 2) return { type: "sell", confidence: 0.8, reason: "Profit: +" + pnl.toFixed(1) + "%" };
+    if (pnl < -1.2) return { type: "sell", confidence: 0.9, reason: "Stop: " + pnl.toFixed(1) + "%" };
+    if (price < ema * 0.998) return { type: "sell", confidence: 0.7, reason: "Below EMA" };
+  }
+
+  return { type: "hold", confidence: 0.3, reason: "Watching QQQ" };
+}`,
+  },
+  {
+    name: "IWM Small Cap Hunter",
+    description: "Aggressive small cap momentum",
+    asset_class: "stock",
+    symbols: ["IWM"],
+    code: `
+function generateSignal(data, position) {
+  const len = data.close.length;
+  const price = data.close[len - 1];
+  const rsi = RSI(data.close, 7);
+  const currentRSI = rsi[len - 1];
+
+  if (!position && currentRSI < 58 && currentRSI > 35) {
+    return { type: "buy", confidence: 0.68, reason: "IWM RSI: " + currentRSI.toFixed(0) };
+  }
+
+  if (position) {
+    const pnl = ((price - position.avgEntryPrice) / position.avgEntryPrice) * 100;
+    if (pnl > 1.8) return { type: "sell", confidence: 0.8, reason: "Target: +" + pnl.toFixed(1) + "%" };
+    if (pnl < -1.5) return { type: "sell", confidence: 0.9, reason: "Stop: " + pnl.toFixed(1) + "%" };
+  }
+
+  return { type: "hold", confidence: 0.3, reason: "IWM RSI: " + currentRSI.toFixed(0) };
+}`,
+  },
+];
+
+const STRATEGIES = [...CRYPTO_STRATEGIES, ...STOCK_STRATEGIES];
+
+async function seedStrategies() {
+  console.log("Seeding aggressive strategies (keeping existing)...\n");
+
+  // DON'T deactivate existing strategies - just add new ones
   for (const strategy of STRATEGIES) {
     const { data, error } = await supabase
       .from("strategies")
