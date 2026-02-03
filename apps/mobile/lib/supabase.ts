@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import Constants from 'expo-constants';
 
-// Supabase client for mobile app
-const SUPABASE_URL = "https://ajtndzurrkpvujogfvcl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqdG5kenVycmtwdnVqb2dmdmNsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTg5MjY5MSwiZXhwIjoyMDg1NDY4NjkxfQ.IS84lCseEf7wjZZIcg9q-76P2DpFcp8ghyB78-dYchY";
+// Supabase client for mobile app - uses environment variables
+const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

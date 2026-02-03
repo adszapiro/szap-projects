@@ -722,31 +722,41 @@ async function main(): Promise<void> {
   // SCHEDULE CRON JOBS
   // =====================
   
+  // Safe wrapper that catches errors and logs them
+  const safeRun = async (name: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (error) {
+      console.error(`❌ [${name}] Error:`, error);
+      await log("error", `${name}_failed`, { error: String(error) });
+    }
+  };
+  
   // STOCKS: Every 15 minutes during market hours (9AM-4PM ET, Mon-Fri)
   cron.schedule("*/15 9-16 * * 1-5", async () => {
     console.log(`\n📈 [STOCKS] Scheduled cycle at ${new Date().toISOString()}`);
-    await runStockCycle();
+    await safeRun("stock_cycle", runStockCycle);
   }, {
     timezone: "America/New_York",
   });
   
-  // CRYPTO: Every 5 minutes, 24/7 (crypto never sleeps!) - More aggressive
+  // CRYPTO: Every 5 minutes, 24/7 (crypto never sleeps!)
   cron.schedule("*/5 * * * *", async () => {
     console.log(`\n🪙 [CRYPTO] Scheduled cycle at ${new Date().toISOString()}`);
-    await runCryptoCycle();
+    await safeRun("crypto_cycle", runCryptoCycle);
   });
   
   // End-of-day analysis for stocks at 4:30 PM ET on weekdays
   cron.schedule("30 16 * * 1-5", async () => {
     console.log(`\n📊 [STOCKS] End-of-day analysis at ${new Date().toISOString()}`);
-    await runEndOfDayAnalysis("stock");
-    
-    // Run learning cycle and print report in tournament mode
-    if (TOURNAMENT_MODE) {
-      await runLearningCycle();
-      const report = await generateReport();
-      console.log(report);
-    }
+    await safeRun("stock_eod", async () => {
+      await runEndOfDayAnalysis("stock");
+      if (TOURNAMENT_MODE) {
+        await runLearningCycle();
+        const report = await generateReport();
+        console.log(report);
+      }
+    });
   }, {
     timezone: "America/New_York",
   });
@@ -754,22 +764,33 @@ async function main(): Promise<void> {
   // Daily analysis for crypto at midnight UTC
   cron.schedule("0 0 * * *", async () => {
     console.log(`\n📊 [CRYPTO] Daily analysis at ${new Date().toISOString()}`);
-    await runEndOfDayAnalysis("crypto");
-    
-    // Run learning cycle for crypto
-    if (TOURNAMENT_MODE) {
-      await runLearningCycle();
-      await printLeaderboard();
-    }
+    await safeRun("crypto_daily", async () => {
+      await runEndOfDayAnalysis("crypto");
+      if (TOURNAMENT_MODE) {
+        await runLearningCycle();
+        await printLeaderboard();
+      }
+    });
   });
   
-  // Tournament learning cycle: Every hour (to update bandit more frequently)
+  // Tournament learning cycle: Every hour
   if (TOURNAMENT_MODE) {
     cron.schedule("0 * * * *", async () => {
       console.log(`\n🎓 [TOURNAMENT] Learning cycle at ${new Date().toISOString()}`);
-      await runLearningCycle();
+      await safeRun("learning_cycle", runLearningCycle);
     });
   }
+  
+  // Heartbeat log every hour to confirm agent is alive
+  cron.schedule("30 * * * *", async () => {
+    const status = await getHealthStatus();
+    console.log(`💓 [HEARTBEAT] Agent alive - Errors: ${status.errors}, Success: ${status.successRate.toFixed(0)}%`);
+    await log("info", "heartbeat", { 
+      errors: status.errors,
+      successRate: status.successRate,
+      timestamp: new Date().toISOString(),
+    });
+  });
   
   console.log("\n📅 Cron schedules configured:");
   console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
@@ -782,4 +803,28 @@ async function main(): Promise<void> {
   console.log("\n🤖 Agent is running. Press Ctrl+C to stop.");
 }
 
-main().catch(console.error);
+// Run with crash recovery
+async function startWithRecovery() {
+  let restarts = 0;
+  const MAX_RESTARTS = 5;
+  
+  while (restarts < MAX_RESTARTS) {
+    try {
+      await main();
+      break; // Normal exit
+    } catch (error) {
+      restarts++;
+      console.error(`\n💥 Agent crashed (attempt ${restarts}/${MAX_RESTARTS}):`, error);
+      
+      if (restarts < MAX_RESTARTS) {
+        console.log(`⏳ Restarting in 30 seconds...`);
+        await new Promise(r => setTimeout(r, 30000));
+      } else {
+        console.error(`❌ Max restarts reached. Agent stopped.`);
+        process.exit(1);
+      }
+    }
+  }
+}
+
+startWithRecovery();
