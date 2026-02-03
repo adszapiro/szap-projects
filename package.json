@@ -42,7 +42,16 @@
   },
   "packageManager": "npm@11.6.2",
   "workspaces": [
-    "apps/*",
+    "apps/api-tester",
+    "apps/backtester",
+    "apps/devpulse",
+    "apps/markdown-pro",
+    "apps/portfolio",
+    "apps/quant-agent",
+    "apps/resume-ai",
+    "apps/snippet-vault",
+    "apps/todo-app",
+    "apps/wallet-scope",
     "packages/*"
   ]
 }
