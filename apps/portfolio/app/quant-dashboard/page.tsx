@@ -78,6 +78,9 @@ export default function QuantDashboard() {
   const [tradesPage, setTradesPage] = useState(1);
   const TRADES_PER_PAGE = 20;
   const [strategyActions, setStrategyActions] = useState<Record<string, boolean>>({});
+  const [strategySearch, setStrategySearch] = useState("");
+  const [strategyFilter, setStrategyFilter] = useState<"all" | "stock" | "crypto">("all");
+  const [chartTimeRange, setChartTimeRange] = useState<"1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL">("1W");
 
   const fetchData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -144,7 +147,10 @@ export default function QuantDashboard() {
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    const portfolioValue = 100000;
+    // Use latest snapshot portfolio value, fallback to $100k starting capital
+    const latestSnapshot = snapshots[0];
+    const basePortfolioValue = latestSnapshot?.portfolio_value || 100000;
+    const portfolioValue = basePortfolioValue;
     const totalTrades = trades.length;
     
     // Only count closed trades (with P&L) for win rate calculation
@@ -238,9 +244,65 @@ export default function QuantDashboard() {
     };
   }, [trades]);
 
+  // Monte Carlo simulation metrics (simplified bootstrap)
+  const monteCarloMetrics = useMemo(() => {
+    const closedTrades = trades.filter(t => t.pnl !== null);
+    if (closedTrades.length < 10) return null;
+
+    const pnls = closedTrades.map(t => t.pnl || 0);
+    const simulations = 1000;
+    const periods = 30; // 30 trade lookahead
+    const results: number[] = [];
+
+    // Bootstrap simulation
+    for (let sim = 0; sim < simulations; sim++) {
+      let cumPnl = 0;
+      for (let i = 0; i < periods; i++) {
+        const randomIdx = Math.floor(Math.random() * pnls.length);
+        cumPnl += pnls[randomIdx];
+      }
+      results.push(cumPnl);
+    }
+
+    results.sort((a, b) => a - b);
+
+    const percentile = (p: number) => results[Math.floor(p * results.length)];
+    const mean = results.reduce((a, b) => a + b, 0) / results.length;
+    const variance = results.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / results.length;
+
+    // Value at Risk (95% confidence)
+    const var95 = percentile(0.05);
+    // Conditional VaR (expected loss beyond VaR)
+    const cvar95 = results.filter(r => r <= var95).reduce((a, b) => a + b, 0) /
+                   results.filter(r => r <= var95).length || var95;
+
+    // Probability of profit
+    const profitProb = results.filter(r => r > 0).length / results.length;
+
+    return {
+      expectedPnl: mean,
+      var95: Math.abs(var95),
+      cvar95: Math.abs(cvar95),
+      profitProbability: profitProb * 100,
+      bestCase: percentile(0.95),
+      worstCase: percentile(0.05),
+      stdDev: Math.sqrt(variance),
+    };
+  }, [trades]);
+
+  // Filtered leaderboard for search/filter
+  const filteredLeaderboard = useMemo(() => {
+    return leaderboard.filter(s => {
+      const matchesSearch = strategySearch === "" ||
+        s.name.toLowerCase().includes(strategySearch.toLowerCase());
+      const matchesFilter = strategyFilter === "all" || s.asset_class === strategyFilter;
+      return matchesSearch && matchesFilter;
+    });
+  }, [leaderboard, strategySearch, strategyFilter]);
+
   // Strategy allocation data
   const allocationData = useMemo(() => {
-    return leaderboard
+    return filteredLeaderboard
       .filter(s => s.performance?.current_weight && s.performance.current_weight > 0)
       .map((s, i) => ({
         name: s.name,
@@ -249,34 +311,150 @@ export default function QuantDashboard() {
         pnl: s.performance?.total_pnl || 0,
         winRate: s.expectedWinRate || 0.5,
       }));
-  }, [leaderboard]);
+  }, [filteredLeaderboard]);
 
-  // P&L History for chart
+  // Calculate time range cutoff date
+  const getTimeRangeCutoff = useCallback((range: typeof chartTimeRange): Date => {
+    const now = new Date();
+    switch (range) {
+      case "1D":
+        return new Date(now.setDate(now.getDate() - 1));
+      case "1W":
+        return new Date(now.setDate(now.getDate() - 7));
+      case "1M":
+        return new Date(now.setMonth(now.getMonth() - 1));
+      case "3M":
+        return new Date(now.setMonth(now.getMonth() - 3));
+      case "YTD":
+        return new Date(now.getFullYear(), 0, 1);
+      case "1Y":
+        return new Date(now.setFullYear(now.getFullYear() - 1));
+      case "ALL":
+      default:
+        return new Date(0);
+    }
+  }, []);
+
+  // P&L History for chart with time range filter
+  // Shows intraday trade-by-trade data for 1D, daily snapshots for longer periods
   const pnlHistory = useMemo(() => {
+    const cutoffDate = getTimeRangeCutoff(chartTimeRange);
+    const baseValue = 100000; // Starting capital
+
+    // For 1D view or when we have limited snapshots, show trade-by-trade data
+    if (chartTimeRange === "1D" || snapshots.length <= 1) {
+      if (trades.length === 0) return [];
+
+      // Sort trades by timestamp (oldest first)
+      const sortedTrades = [...trades]
+        .filter(t => new Date(t.created_at) >= cutoffDate)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      if (sortedTrades.length === 0) {
+        // No trades in range, show single point at base value
+        return [{ date: "Now", fullDate: new Date().toISOString(), pnl: 0, dayPnl: 0, value: baseValue }];
+      }
+
+      // Calculate starting P&L (sum of all trades before cutoff)
+      const preCutoffPnL = trades
+        .filter(t => new Date(t.created_at) < cutoffDate)
+        .reduce((sum, t) => sum + (t.pnl || 0), 0);
+
+      // Build trade-by-trade time series
+      let cumulativePnL = preCutoffPnL;
+      const dataPoints: Array<{ date: string; fullDate: string; pnl: number; dayPnl: number; value: number }> = [];
+
+      // Add starting point
+      dataPoints.push({
+        date: "Start",
+        fullDate: sortedTrades[0].created_at,
+        pnl: cumulativePnL,
+        dayPnl: 0,
+        value: baseValue + cumulativePnL,
+      });
+
+      // Add each trade as a data point
+      sortedTrades.forEach((trade, i) => {
+        const tradePnl = trade.pnl || 0;
+        cumulativePnL += tradePnl;
+        const date = new Date(trade.created_at);
+
+        dataPoints.push({
+          date: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          fullDate: trade.created_at,
+          pnl: cumulativePnL,
+          dayPnl: tradePnl,
+          value: baseValue + cumulativePnL,
+        });
+      });
+
+      return dataPoints;
+    }
+
+    // For longer time ranges, use daily snapshots
+    if (snapshots.length > 0) {
+      const filteredSnapshots = snapshots
+        .filter(s => new Date(s.date) >= cutoffDate)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      if (filteredSnapshots.length > 0) {
+        const formatDate = (dateStr: string) => {
+          const date = new Date(dateStr);
+          if (chartTimeRange === "1W") {
+            return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+          } else if (chartTimeRange === "1M" || chartTimeRange === "3M") {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          } else {
+            return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+          }
+        };
+
+        return filteredSnapshots.map(s => ({
+          date: formatDate(s.date),
+          fullDate: s.date,
+          pnl: s.total_pnl,
+          dayPnl: s.daily_pnl,
+          value: s.portfolio_value,
+        }));
+      }
+    }
+
+    // Final fallback: group trades by day
     if (trades.length === 0) return [];
-    
-    // Sort trades by date (oldest first)
-    const sortedTrades = [...trades].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-    
-    // Group by date and calculate cumulative P&L
-    const dailyPnL: { [date: string]: number } = {};
-    let cumulativePnL = 0;
-    
+
+    const sortedTrades = [...trades]
+      .filter(t => new Date(t.created_at) >= cutoffDate)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (sortedTrades.length === 0) return [];
+
+    const dailyPnL: { [date: string]: { pnl: number; cumulative: number } } = {};
+    const preCutoffPnL = trades
+      .filter(t => new Date(t.created_at) < cutoffDate)
+      .reduce((sum, t) => sum + (t.pnl || 0), 0);
+
+    let cumulativePnL = preCutoffPnL;
+
     sortedTrades.forEach(trade => {
       const date = trade.created_at.split('T')[0];
-      cumulativePnL += (trade.pnl || 0);
-      dailyPnL[date] = cumulativePnL;
+      const tradePnl = trade.pnl || 0;
+      cumulativePnL += tradePnl;
+
+      if (!dailyPnL[date]) {
+        dailyPnL[date] = { pnl: 0, cumulative: cumulativePnL };
+      }
+      dailyPnL[date].pnl += tradePnl;
+      dailyPnL[date].cumulative = cumulativePnL;
     });
-    
-    // Convert to array for chart
-    return Object.entries(dailyPnL).map(([date, pnl]) => ({
+
+    return Object.entries(dailyPnL).map(([date, data]) => ({
       date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      pnl: pnl,
-      value: 100000 + pnl,
+      fullDate: date,
+      pnl: data.cumulative,
+      dayPnl: data.pnl,
+      value: baseValue + data.cumulative,
     }));
-  }, [trades]);
+  }, [snapshots, trades, chartTimeRange, getTimeRangeCutoff]);
 
   // Strategy performance comparison data
   const strategyComparison = useMemo(() => {
@@ -551,6 +729,61 @@ export default function QuantDashboard() {
               subtext={`${strategies.filter(s => s.status === "paused").length} paused`}
             />
           </div>
+
+          {/* Monte Carlo Risk Analysis */}
+          {monteCarloMetrics && (
+            <div className="pt-2 border-t border-gray-800/30">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">
+                  Monte Carlo Risk Analysis
+                </span>
+                <span className="text-[10px] text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded">
+                  1,000 simulations • 30 trade horizon
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                <MetricCard
+                  label="Profit Probability"
+                  value={`${monteCarloMetrics.profitProbability.toFixed(0)}%`}
+                  isPositive={monteCarloMetrics.profitProbability > 50}
+                  subtext="Next 30 trades"
+                />
+                <MetricCard
+                  label="Expected P&L"
+                  value={formatCurrency(monteCarloMetrics.expectedPnl)}
+                  isPositive={monteCarloMetrics.expectedPnl > 0}
+                  subtext="Mean outcome"
+                />
+                <MetricCard
+                  label="VaR (95%)"
+                  value={formatCurrency(monteCarloMetrics.var95)}
+                  isPositive={false}
+                  subtext="Value at risk"
+                />
+                <MetricCard
+                  label="CVaR (95%)"
+                  value={formatCurrency(monteCarloMetrics.cvar95)}
+                  isPositive={false}
+                  subtext="Expected shortfall"
+                />
+                <MetricCard
+                  label="Best Case (95th)"
+                  value={formatCurrency(monteCarloMetrics.bestCase)}
+                  isPositive={true}
+                />
+                <MetricCard
+                  label="Worst Case (5th)"
+                  value={formatCurrency(monteCarloMetrics.worstCase)}
+                  isPositive={monteCarloMetrics.worstCase > 0}
+                />
+                <MetricCard
+                  label="Volatility"
+                  value={formatCurrency(monteCarloMetrics.stdDev)}
+                  subtext="Std deviation"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -603,11 +836,23 @@ export default function QuantDashboard() {
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                        Portfolio Value Over Time
+                        Portfolio Value
                       </h2>
-                      <span className="text-xs text-gray-500 font-mono">
-                        {pnlHistory.length > 0 ? `${pnlHistory.length} data points` : 'Waiting for data...'}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {(["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const).map((range) => (
+                          <button
+                            key={range}
+                            onClick={() => setChartTimeRange(range)}
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                              chartTimeRange === range
+                                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
+                            }`}
+                          >
+                            {range}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     {pnlHistory.length > 0 ? (
                       <div className="h-[250px]">
@@ -1079,9 +1324,49 @@ export default function QuantDashboard() {
             )}
 
             {activeTab === "strategies" && (
-              <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                {strategies.map((strategy, idx) => {
-                  const perf = leaderboard.find(l => l.id === strategy.id);
+              <div className="space-y-4">
+                {/* Search and Filter Bar */}
+                <div className="flex flex-col sm:flex-row gap-3 bg-[#12121a] border border-gray-800/50 rounded-xl p-4">
+                  <div className="flex-1 relative">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search strategies..."
+                      value={strategySearch}
+                      onChange={(e) => setStrategySearch(e.target.value)}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/25"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "stock", label: "Stocks" },
+                      { value: "crypto", label: "Crypto" },
+                    ].map((filter) => (
+                      <button
+                        key={filter.value}
+                        onClick={() => setStrategyFilter(filter.value as typeof strategyFilter)}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          strategyFilter === filter.value
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : "bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-sm text-gray-500 self-center">
+                    {filteredLeaderboard.length} of {leaderboard.length} strategies
+                  </div>
+                </div>
+
+                {/* Strategy Cards Grid */}
+                <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredLeaderboard.map((strategy, idx) => {
+                  const perf = strategy;
                   const winRate = (perf?.expectedWinRate || 0.5) * 100;
                   const allocation = (perf?.performance?.current_weight || 0) * 100;
                   
@@ -1209,6 +1494,7 @@ export default function QuantDashboard() {
                     </motion.div>
                   );
                 })}
+                </div>
               </div>
             )}
 
