@@ -6,6 +6,7 @@
  */
 
 import { getSupabase, log } from "./db.js";
+import { validateStrategyCode } from "./sandbox.js";
 
 // Track error counts per strategy
 const errorCounts = new Map<string, number>();
@@ -159,10 +160,8 @@ ${code}
         const fixedCode = fix(originalCode);
         
         // Validate the fix compiles
-        new Function("data", "position", "SMA", "EMA", "RSI", `
-          ${fixedCode}
-          return generateSignal(data, position);
-        `);
+        const validation = validateStrategyCode(fixedCode);
+        if (!validation.valid) throw new Error(validation.error);
         
         return fixedCode;
       } catch {

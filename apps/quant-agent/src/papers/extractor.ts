@@ -5,6 +5,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { ExtractedStrategy, PaperMetadata } from "./types.js";
+import { validateStrategyCode as sandboxValidate } from "../sandbox.js";
 
 // Lazy initialization to ensure env vars are loaded
 let anthropic: Anthropic | null = null;
@@ -102,7 +103,23 @@ export async function extractStrategiesFromText(
     }
 
     const parsed = JSON.parse(jsonStr);
-    return parsed.strategies || [];
+    const strategies = parsed.strategies;
+    if (!Array.isArray(strategies)) return [];
+
+    // Validate each strategy matches expected schema
+    return strategies.filter((s: unknown): s is ExtractedStrategy => {
+      if (!s || typeof s !== "object") return false;
+      const obj = s as Record<string, unknown>;
+      return (
+        typeof obj.name === "string" &&
+        typeof obj.code === "string" &&
+        typeof obj.description === "string" &&
+        typeof obj.confidence === "number" &&
+        obj.confidence >= 0 && obj.confidence <= 1 &&
+        Array.isArray(obj.symbols) &&
+        sandboxValidate(obj.code as string).valid
+      );
+    });
   } catch (error) {
     console.error("Failed to parse extraction response:", error);
     return [];
@@ -151,7 +168,23 @@ ${EXTRACTION_PROMPT}`;
     }
 
     const parsed = JSON.parse(jsonStr);
-    return parsed.strategies || [];
+    const strategies = parsed.strategies;
+    if (!Array.isArray(strategies)) return [];
+
+    // Validate each strategy matches expected schema
+    return strategies.filter((s: unknown): s is ExtractedStrategy => {
+      if (!s || typeof s !== "object") return false;
+      const obj = s as Record<string, unknown>;
+      return (
+        typeof obj.name === "string" &&
+        typeof obj.code === "string" &&
+        typeof obj.description === "string" &&
+        typeof obj.confidence === "number" &&
+        obj.confidence >= 0 && obj.confidence <= 1 &&
+        Array.isArray(obj.symbols) &&
+        sandboxValidate(obj.code as string).valid
+      );
+    });
   } catch (error) {
     console.error("Failed to parse extraction response:", error);
     return [];
@@ -175,13 +208,8 @@ export function validateStrategyCode(code: string): {
     return { valid: false, error: "Missing return statement" };
   }
 
-  // Try to parse (basic syntax check)
-  try {
-    new Function("data", "position", code);
-    return { valid: true };
-  } catch (error) {
-    return { valid: false, error: String(error) };
-  }
+  // Validate via sandboxed compilation
+  return sandboxValidate(code);
 }
 
 /**

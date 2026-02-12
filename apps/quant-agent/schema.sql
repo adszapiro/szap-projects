@@ -116,14 +116,14 @@ ALTER TABLE child_learnings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_snapshots ENABLE ROW LEVEL SECURITY;
 
--- Policies to allow all operations (since agent runs server-side with service key)
-CREATE POLICY "Allow all for strategies" ON strategies FOR ALL USING (true);
-CREATE POLICY "Allow all for backtest_results" ON backtest_results FOR ALL USING (true);
-CREATE POLICY "Allow all for agent_trades" ON agent_trades FOR ALL USING (true);
-CREATE POLICY "Allow all for model_debates" ON model_debates FOR ALL USING (true);
-CREATE POLICY "Allow all for child_learnings" ON child_learnings FOR ALL USING (true);
-CREATE POLICY "Allow all for agent_logs" ON agent_logs FOR ALL USING (true);
-CREATE POLICY "Allow all for daily_snapshots" ON daily_snapshots FOR ALL USING (true);
+-- RLS Policies: anon key gets read-only, service key bypasses RLS entirely
+CREATE POLICY "anon_read_strategies" ON strategies FOR SELECT USING (true);
+CREATE POLICY "anon_read_backtest_results" ON backtest_results FOR SELECT USING (true);
+CREATE POLICY "anon_read_agent_trades" ON agent_trades FOR SELECT USING (true);
+CREATE POLICY "anon_read_model_debates" ON model_debates FOR SELECT USING (true);
+CREATE POLICY "anon_read_child_learnings" ON child_learnings FOR SELECT USING (true);
+CREATE POLICY "anon_read_agent_logs" ON agent_logs FOR SELECT USING (true);
+CREATE POLICY "anon_read_daily_snapshots" ON daily_snapshots FOR SELECT USING (true);
 
 -- =====================
 -- CRYPTO SUPPORT (v1.1)

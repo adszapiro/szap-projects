@@ -48,34 +48,7 @@ function adjustPositionForVolatility(
   return basePositionValue * clampedAdjustment;
 }
 
-// Strategy execution helpers (copied from index.ts pattern)
-const STRATEGY_HELPERS = `
-  function SMA(arr, period) {
-    if (arr.length < period) return arr[arr.length - 1] || 0;
-    const slice = arr.slice(-period);
-    return slice.reduce((a, b) => a + b, 0) / period;
-  }
-  function EMA(arr, period) {
-    if (arr.length < period) return arr[arr.length - 1] || 0;
-    const k = 2 / (period + 1);
-    let ema = arr[0];
-    for (let i = 1; i < arr.length; i++) {
-      ema = arr[i] * k + ema * (1 - k);
-    }
-    return ema;
-  }
-  function RSI(prices, period = 14) {
-    if (prices.length < period + 1) return 50;
-    let gains = 0, losses = 0;
-    for (let i = prices.length - period; i < prices.length; i++) {
-      const change = prices[i] - prices[i - 1];
-      if (change > 0) gains += change;
-      else losses -= change;
-    }
-    const rs = losses === 0 ? 100 : gains / losses;
-    return 100 - (100 / (1 + rs));
-  }
-`;
+import { executeSandboxed, type StrategySignalResult } from "../sandbox.js";
 
 export interface TournamentResult {
   cycle: "stock" | "crypto";
@@ -99,56 +72,14 @@ export interface StrategyResult {
 }
 
 /**
- * Execute a single strategy's code
+ * Execute a single strategy's code in a sandboxed VM
  */
-interface StrategySignal {
-  type: "buy" | "sell" | "hold";
-  confidence: number;
-  reason: string;
-  stopLoss?: number;     // Strategy-defined stop-loss %
-  takeProfit?: number;   // Strategy-defined take-profit %
-  positionSize?: number; // Strategy-defined position size % of allocation
-}
-
 function executeStrategyCode(
   code: string,
   data: { open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] },
   position: { qty: number; avgEntryPrice: number } | null
-): StrategySignal {
-  try {
-    // Wrap with safety checks
-    const safeCode = `
-      ${STRATEGY_HELPERS}
-
-      // Validate data
-      if (!data || !data.close || data.close.length === 0) {
-        return { type: "hold", confidence: 0, reason: "No data available" };
-      }
-
-      ${code}
-
-      // Call the strategy
-      try {
-        return generateSignal(data, position);
-      } catch (e) {
-        return { type: "hold", confidence: 0, reason: "Strategy error: " + e.message };
-      }
-    `;
-
-    const fn = new Function("data", "position", safeCode);
-    const result = fn(data, position);
-
-    return {
-      type: result?.type || "hold",
-      confidence: typeof result?.confidence === "number" ? result.confidence : 0,
-      reason: result?.reason || "No reason provided",
-      stopLoss: typeof result?.stopLoss === "number" ? result.stopLoss : undefined,
-      takeProfit: typeof result?.takeProfit === "number" ? result.takeProfit : undefined,
-      positionSize: typeof result?.positionSize === "number" ? result.positionSize : undefined,
-    };
-  } catch (error) {
-    return { type: "hold", confidence: 0, reason: `Execution error: ${error}` };
-  }
+): StrategySignalResult {
+  return executeSandboxed(code, data, position);
 }
 
 /**

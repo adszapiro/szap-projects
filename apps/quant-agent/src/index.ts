@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: ".env.local", override: true });
 
 import cron from "node-cron";
+import { executeSandboxed } from "./sandbox.js";
 import { debateStrategy, analyzeAndLearn, validateStrategy } from "./brain/orchestrator.js";
 import {
   saveStrategy,
@@ -138,36 +139,16 @@ function validateData(data: { close: number[]; high: number[]; low: number[]; op
   return true;
 }
 
-// Execute a strategy and return signal
+// Execute a strategy in sandboxed VM and return signal
 function executeStrategy(
   code: string,
   data: { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] },
   position: { qty: number; avgEntryPrice: number; side: string } | null
 ): { type: "buy" | "sell" | "hold"; confidence: number; reason: string } {
-  // Validate data first
   if (!validateData(data)) {
     return { type: "hold", confidence: 0, reason: "Insufficient data for analysis" };
   }
-  
-  try {
-    // Wrap strategy code with safety checks
-    const safeCode = `
-      // Safety wrapper - ensure data arrays exist
-      if (!data || !data.close || !data.close.length) {
-        return { type: "hold", confidence: 0, reason: "No data available" };
-      }
-      ${code}
-      return generateSignal(data, position);
-    `;
-    
-    // Create function from code string
-    const strategyFn = new Function("data", "position", "SMA", "EMA", "RSI", safeCode);
-    
-    return strategyFn(data, position, SMA, EMA, RSI);
-  } catch (error) {
-    console.error("Strategy execution error:", error);
-    return { type: "hold", confidence: 0, reason: `Error: ${error}` };
-  }
+  return executeSandboxed(code, data, position);
 }
 
 // =====================
