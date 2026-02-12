@@ -153,7 +153,7 @@ export default function QuantDashboard() {
 
       {/* Main content area - offset by sidebar width */}
       <div className="lg:ml-[220px]">
-        <MetricsBar trades={trades} strategies={strategies} tournamentStats={tournamentStats} snapshots={snapshots} />
+        <MetricsBar trades={trades} snapshots={snapshots} />
 
         <main className="px-6 py-6">
           <AnimatePresence mode="wait">
@@ -168,11 +168,7 @@ export default function QuantDashboard() {
                 <OverviewPanel
                   snapshots={snapshots}
                   trades={trades}
-                  strategies={strategies}
-                  logs={logs}
                   leaderboard={leaderboard}
-                  agentStatus={agentStatus}
-                  onNavigate={tab => setActiveTab(tab as TabId)}
                 />
               )}
               {activeTab === "strategies" && (

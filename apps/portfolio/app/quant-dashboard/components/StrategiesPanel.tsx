@@ -27,8 +27,52 @@ export default function StrategiesPanel({ leaderboard, onStrategyAction, strateg
     }),
   [leaderboard, search, filter]);
 
+  const allocationData = useMemo(() =>
+    leaderboard
+      .filter(s => s.performance?.current_weight && s.performance.current_weight > 0)
+      .sort((a, b) => (b.performance?.current_weight || 0) - (a.performance?.current_weight || 0))
+      .slice(0, 10)
+      .map((s, i) => ({
+        name: s.name,
+        allocation: (s.performance?.current_weight || 0) * 100,
+        color: STRATEGY_COLORS[i % STRATEGY_COLORS.length],
+      })),
+  [leaderboard]);
+
   return (
     <div className="space-y-4">
+      {/* Capital Allocation Bar */}
+      {allocationData.length > 0 && (
+        <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-4">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 bg-cyan-500 rounded-full" />
+            Capital Allocation
+          </h2>
+          <div className="flex h-3 rounded-full overflow-hidden bg-gray-800">
+            {allocationData.map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ width: 0 }}
+                animate={{ width: `${item.allocation}%` }}
+                transition={{ duration: 0.5, delay: i * 0.05 }}
+                className="h-full"
+                style={{ backgroundColor: item.color }}
+                title={`${item.name}: ${item.allocation.toFixed(1)}%`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+            {allocationData.slice(0, 6).map((item, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-[10px] text-gray-400 truncate max-w-[100px]">{item.name}</span>
+                <span className="text-[10px] font-mono text-cyan-400">{item.allocation.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Search & Filter */}
       <div className="flex flex-col sm:flex-row gap-3 bg-[#12121a] border border-gray-800/50 rounded-xl p-4">
         <div className="flex-1 relative">

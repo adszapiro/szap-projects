@@ -142,3 +142,26 @@ ALTER TABLE child_learnings ADD COLUMN IF NOT EXISTS asset_class TEXT DEFAULT 's
 CREATE INDEX IF NOT EXISTS idx_strategies_asset_class ON strategies(asset_class);
 CREATE INDEX IF NOT EXISTS idx_trades_asset_class ON agent_trades(asset_class);
 CREATE INDEX IF NOT EXISTS idx_learnings_asset_class ON child_learnings(asset_class);
+
+-- =====================
+-- ML RISK SCORES (v1.2)
+-- =====================
+-- Stores composite risk scores per strategy for ML-driven allocation
+CREATE TABLE IF NOT EXISTS strategy_risk_scores (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
+  sharpe_ratio REAL DEFAULT 0,
+  sortino_ratio REAL DEFAULT 0,
+  profit_factor REAL DEFAULT 0,
+  expectancy REAL DEFAULT 0,
+  max_drawdown_pct REAL DEFAULT 0,
+  composite_score REAL DEFAULT 0.5,
+  trades_used INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(strategy_id)
+);
+
+ALTER TABLE strategy_risk_scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_strategy_risk_scores" ON strategy_risk_scores FOR SELECT USING (true);
+CREATE INDEX IF NOT EXISTS idx_risk_scores_strategy ON strategy_risk_scores(strategy_id);
+CREATE INDEX IF NOT EXISTS idx_risk_scores_composite ON strategy_risk_scores(composite_score DESC);

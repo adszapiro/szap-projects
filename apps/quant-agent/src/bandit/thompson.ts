@@ -6,13 +6,14 @@
  * belief about its win probability.
  */
 
-import { 
-  getAllStrategyPerformances, 
-  getStrategyPerformance, 
+import {
+  getAllStrategyPerformances,
+  getStrategyPerformance,
   updateStrategyPerformance,
   updateStrategyWeights,
   StrategyPerformance,
 } from "../db.js";
+import { getCachedRiskScores, adjustWeightsWithScores } from "../ml/risk-scorer.js";
 
 /**
  * Sample from Beta distribution using the inverse transform method
@@ -137,10 +138,21 @@ export async function sampleAllocation(
     weights.set(id, w / weightSum);
   }
 
-  // Persist weights to database
-  await updateStrategyWeights(weights);
+  // Apply ML risk-adjusted scoring (bias toward better Sharpe/Sortino/PF)
+  let finalWeights = weights;
+  try {
+    const riskScores = await getCachedRiskScores();
+    if (riskScores.size > 0) {
+      finalWeights = adjustWeightsWithScores(weights, riskScores);
+    }
+  } catch {
+    // Risk scorer unavailable — use pure Thompson weights
+  }
 
-  return weights;
+  // Persist weights to database
+  await updateStrategyWeights(finalWeights);
+
+  return finalWeights;
 }
 
 /**

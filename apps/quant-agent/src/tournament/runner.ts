@@ -9,6 +9,7 @@ import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
 import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue } from "../simulator.js";
 import { analyzeAndLearnFromLoss, recordWin } from "./loss-learner.js";
+import { updateStrategyRiskScore } from "../ml/risk-scorer.js";
 
 // Volatility-based position sizing
 function calculateVolatility(prices: number[]): number {
@@ -226,10 +227,11 @@ export async function runStockTournament(): Promise<TournamentResult> {
                 pnl_percent: pnlPercent,
                 filled_at: new Date().toISOString(),
               });
-              
+
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
-              
+              updateStrategyRiskScore(strategy.id).catch(() => {});
+
               await log("warning", "stop_loss_triggered", {
                 symbol,
                 strategy: strategy.name,
@@ -238,7 +240,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
                 unrealizedPnlPercent,
                 pnl,
               });
-              
+
               results.push({
                 strategyId: strategy.id,
                 strategyName: strategy.name,
@@ -342,11 +344,12 @@ export async function runStockTournament(): Promise<TournamentResult> {
               filled_at: new Date().toISOString(),
             });
             console.log(`💰 [STOCK] P&L persisted: ${symbol} = ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
-            
+
             // Update bandit with result
             const won = isWinningTrade(pnl);
             await updateBandit(strategy.id, won, pnl);
-            
+            updateStrategyRiskScore(strategy.id).catch(() => {});
+
             // ACTIVE LEARNING: Analyze losses in real-time
             if (!won && pnl < 0) {
               await analyzeAndLearnFromLoss(
@@ -500,7 +503,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               const pnl = orderResult.pnl || 0;
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
-              
+              updateStrategyRiskScore(strategy.id).catch(() => {});
+
               await log("warning", "stop_loss_triggered", {
                 symbol,
                 strategy: strategy.name,
@@ -599,7 +603,8 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const pnl = orderResult.pnl || 0;
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
-          
+          updateStrategyRiskScore(strategy.id).catch(() => {});
+
           // ACTIVE LEARNING: Analyze losses in real-time
           if (!won && pnl < 0) {
             await analyzeAndLearnFromLoss(
