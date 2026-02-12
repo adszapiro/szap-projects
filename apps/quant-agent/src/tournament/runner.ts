@@ -101,23 +101,32 @@ export interface StrategyResult {
 /**
  * Execute a single strategy's code
  */
+interface StrategySignal {
+  type: "buy" | "sell" | "hold";
+  confidence: number;
+  reason: string;
+  stopLoss?: number;     // Strategy-defined stop-loss %
+  takeProfit?: number;   // Strategy-defined take-profit %
+  positionSize?: number; // Strategy-defined position size % of allocation
+}
+
 function executeStrategyCode(
   code: string,
   data: { open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] },
   position: { qty: number; avgEntryPrice: number } | null
-): { type: "buy" | "sell" | "hold"; confidence: number; reason: string } {
+): StrategySignal {
   try {
     // Wrap with safety checks
     const safeCode = `
       ${STRATEGY_HELPERS}
-      
+
       // Validate data
       if (!data || !data.close || data.close.length === 0) {
         return { type: "hold", confidence: 0, reason: "No data available" };
       }
-      
+
       ${code}
-      
+
       // Call the strategy
       try {
         return generateSignal(data, position);
@@ -125,14 +134,17 @@ function executeStrategyCode(
         return { type: "hold", confidence: 0, reason: "Strategy error: " + e.message };
       }
     `;
-    
+
     const fn = new Function("data", "position", safeCode);
     const result = fn(data, position);
-    
+
     return {
       type: result?.type || "hold",
       confidence: typeof result?.confidence === "number" ? result.confidence : 0,
       reason: result?.reason || "No reason provided",
+      stopLoss: typeof result?.stopLoss === "number" ? result.stopLoss : undefined,
+      takeProfit: typeof result?.takeProfit === "number" ? result.takeProfit : undefined,
+      positionSize: typeof result?.positionSize === "number" ? result.positionSize : undefined,
     };
   } catch (error) {
     return { type: "hold", confidence: 0, reason: `Execution error: ${error}` };
@@ -223,7 +235,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
       try {
         // Get market data (1Day bars, request 300 days)
         const bars = await getBars(symbol, "1Day", 300);
-        if (!bars || !bars.close || bars.close.length < 50) {
+        if (!bars || !bars.close || bars.close.length < 20) {
           results.push({
             strategyId: strategy.id,
             strategyName: strategy.name,
@@ -247,14 +259,18 @@ export async function runStockTournament(): Promise<TournamentResult> {
           avgEntryPrice: parseFloat(position.avg_entry_price),
         } : null;
         
-        // STOP-LOSS CHECK: Force sell if position has lost more than 3% (tighter for stocks)
-        const STOP_LOSS_PERCENT = 3;
+        // STOP-LOSS CHECK: Use strategy-defined stop-loss, or default 8% for stocks
+        const DEFAULT_STOP_LOSS = 8; // Let strategies breathe more
         const currentPrice = data.close[data.close.length - 1];
-        
+
         if (positionData && positionData.avgEntryPrice > 0 && !soldSymbols.has(symbol)) {
           const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
-          
-          if (unrealizedPnlPercent <= -STOP_LOSS_PERCENT) {
+
+          // Execute strategy first to check if it has a custom stop-loss
+          const preSignal = executeStrategyCode(strategy.code, data, positionData);
+          const stopLoss = preSignal.stopLoss || DEFAULT_STOP_LOSS;
+
+          if (unrealizedPnlPercent <= -stopLoss) {
             console.log(`🛑 [STOCK] STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
             try {
               const result = await placeOrder({
@@ -262,9 +278,9 @@ export async function runStockTournament(): Promise<TournamentResult> {
                 qty: positionData.qty,
                 side: "sell",
                 strategy_id: strategy.id,
-                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${STOP_LOSS_PERCENT}% threshold`,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${stopLoss}% threshold`,
               });
-              
+
               soldSymbols.add(symbol);
               tradesExecuted++;
               
@@ -505,7 +521,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
       try {
         // Get market data (1Day bars, 365 days for strategies needing long lookbacks)
         const bars = await getCryptoBars(symbol, "1Day", 365);
-        if (!bars || !bars.close || bars.close.length < 20) {
+        if (!bars || !bars.close || bars.close.length < 10) {
           results.push({
             strategyId: strategy.id,
             strategyName: strategy.name,
@@ -527,14 +543,18 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           avgEntryPrice: position.avgEntryPrice,
         } : null;
         
-        // STOP-LOSS CHECK: Force sell if position has lost more than 5%
-        const STOP_LOSS_PERCENT = 5;
+        // STOP-LOSS CHECK: Use strategy-defined stop-loss, or default 12% for crypto
+        const DEFAULT_CRYPTO_STOP_LOSS = 12;
         const currentPrice = data.close[data.close.length - 1];
-        
+
         if (positionData && positionData.avgEntryPrice > 0) {
           const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
-          
-          if (unrealizedPnlPercent <= -STOP_LOSS_PERCENT) {
+
+          // Get strategy signal to check for custom stop-loss
+          const preSignal = executeStrategyCode(strategy.code, data, positionData);
+          const stopLoss = preSignal.stopLoss || DEFAULT_CRYPTO_STOP_LOSS;
+
+          if (unrealizedPnlPercent <= -stopLoss) {
             console.log(`🛑 STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
             try {
               const orderResult = await placeSimulatedOrder({
@@ -542,7 +562,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
                 side: "sell",
                 qty: positionData.qty,
                 strategy_id: strategy.id,
-                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${STOP_LOSS_PERCENT}% threshold`,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${stopLoss}% threshold`,
               });
               
               tradesExecuted++;

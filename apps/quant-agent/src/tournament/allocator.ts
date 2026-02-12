@@ -16,10 +16,10 @@ export interface AllocationConfig {
 }
 
 const DEFAULT_CONFIG: AllocationConfig = {
-  minAllocation: 0.05,
-  maxAllocation: 0.30,
-  cashReserve: 0.10,
-  maxPositions: 10,
+  minAllocation: 0.01,
+  maxAllocation: 0.50,
+  cashReserve: 0.03,
+  maxPositions: 20,
   riskScaling: true,
 };
 

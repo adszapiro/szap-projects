@@ -101,8 +101,8 @@ export async function getStrategyArms(): Promise<StrategyArm[]> {
  * 3. Higher sampled values = higher allocation
  */
 export async function sampleAllocation(
-  minWeight: number = 0.05,  // Minimum allocation to ensure exploration
-  maxWeight: number = 0.40,  // Maximum allocation to limit risk concentration
+  minWeight: number = 0.01,  // Let weak strategies get nearly nothing
+  maxWeight: number = 0.60,  // Let top performers get up to 60%
 ): Promise<Map<string, number>> {
   const arms = await getStrategyArms();
   

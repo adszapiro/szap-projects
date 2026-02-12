@@ -208,18 +208,18 @@ function determineRecommendation(
   consecutiveLosses: number,
   currentLoss: number
 ): LossRecommendation {
-  // 5+ consecutive losses = pause the strategy
-  if (consecutiveLosses >= 5) {
+  // 10+ consecutive losses = pause the strategy (let it prove itself longer)
+  if (consecutiveLosses >= 10) {
     return "pause_strategy";
   }
 
-  // Loss rate > 70% with significant data = consider retiring
-  if (stats.totalLosses >= 10 && stats.lossRate > 0.7) {
+  // Loss rate > 80% with significant data = consider retiring
+  if (stats.totalLosses >= 30 && stats.lossRate > 0.8) {
     return "retire_strategy";
   }
 
-  // 3+ consecutive losses = reduce allocation
-  if (consecutiveLosses >= 3) {
+  // 5+ consecutive losses = reduce allocation
+  if (consecutiveLosses >= 5) {
     return "reduce_allocation";
   }
 

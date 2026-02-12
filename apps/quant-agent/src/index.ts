@@ -735,8 +735,8 @@ async function main(): Promise<void> {
     }
   };
   
-  // STOCKS: Every 15 minutes during market hours (9AM-4PM ET, Mon-Fri)
-  cron.schedule("*/15 9-16 * * 1-5", async () => {
+  // STOCKS: Every 5 minutes during market hours (9AM-4PM ET, Mon-Fri)
+  cron.schedule("*/5 9-16 * * 1-5", async () => {
     console.log(`\n📈 [STOCKS] Scheduled cycle at ${new Date().toISOString()}`);
     await safeRun("stock_cycle", runStockCycle);
   }, {
