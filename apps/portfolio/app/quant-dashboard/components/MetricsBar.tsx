@@ -41,24 +41,24 @@ export default function MetricsBar({ trades, snapshots }: MetricsBarProps) {
   }, [trades, snapshots]);
 
   return (
-    <div className="border-b border-gray-800/50 bg-[#0d0d14]/50 px-6 py-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-2">
+    <div className="border-b border-[#2a2420]/40 bg-[#141210]/50 px-8 py-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-3">
         <div>
-          <p className="text-[10px] text-gray-500 uppercase font-mono mb-0.5">Portfolio</p>
-          <p className={`font-mono font-semibold text-base ${m.pnlPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
+          <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-0.5">Portfolio</p>
+          <p className={`font-mono font-semibold text-base ${m.pnlPercent >= 0 ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>
             {fmt(m.portfolioValue)}
           </p>
-          <p className="text-[10px] text-gray-500 font-mono">{m.pnlPercent >= 0 ? "+" : ""}{m.pnlPercent.toFixed(2)}%</p>
+          <p className="text-[10px] text-[#9b8772] font-mono">{m.pnlPercent >= 0 ? "+" : ""}{m.pnlPercent.toFixed(2)}%</p>
         </div>
 
         <div>
-          <p className="text-[10px] text-gray-500 uppercase font-mono mb-0.5">Total P&L</p>
+          <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-0.5">Total P&L</p>
           <div className="flex items-center gap-1.5">
-            <p className={`font-mono font-semibold text-base ${m.totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+            <p className={`font-mono font-semibold text-base ${m.totalPnL >= 0 ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>
               {fmt(m.totalPnL)}
             </p>
             {m.pnlTrend !== "flat" && (
-              <svg className={`w-3 h-3 ${m.pnlTrend === "up" ? "text-green-400" : "text-red-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={`w-3 h-3 ${m.pnlTrend === "up" ? "text-[#9cb870]" : "text-[#c67b6a]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={m.pnlTrend === "up" ? "M5 10l7-7m0 0l7 7m-7-7v18" : "M19 14l-7 7m0 0l-7-7m7 7V3"} />
               </svg>
             )}
@@ -66,19 +66,19 @@ export default function MetricsBar({ trades, snapshots }: MetricsBarProps) {
         </div>
 
         <div>
-          <p className="text-[10px] text-gray-500 uppercase font-mono mb-0.5">Today</p>
-          <p className={`font-mono font-semibold text-base ${m.todayPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+          <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-0.5">Today</p>
+          <p className={`font-mono font-semibold text-base ${m.todayPnL >= 0 ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>
             {fmt(m.todayPnL)}
           </p>
-          <p className="text-[10px] text-gray-500 font-mono">{m.todayTrades} trades</p>
+          <p className="text-[10px] text-[#9b8772] font-mono">{m.todayTrades} trades</p>
         </div>
 
         <div>
-          <p className="text-[10px] text-gray-500 uppercase font-mono mb-0.5">Win Rate</p>
-          <p className={`font-mono font-semibold text-base ${m.winRate >= 50 ? "text-green-400" : "text-red-400"}`}>
+          <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-0.5">Win Rate</p>
+          <p className={`font-mono font-semibold text-base ${m.winRate >= 50 ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>
             {m.winRate.toFixed(1)}%
           </p>
-          <p className="text-[10px] text-gray-500 font-mono">{m.winCount}W / {m.lossCount}L</p>
+          <p className="text-[10px] text-[#9b8772] font-mono">{m.winCount}W / {m.lossCount}L</p>
         </div>
       </div>
     </div>

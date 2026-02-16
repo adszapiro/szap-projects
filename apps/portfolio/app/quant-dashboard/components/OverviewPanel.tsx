@@ -43,29 +43,29 @@ export default function OverviewPanel({ snapshots, trades, leaderboard }: Overvi
   }, [trades, snapshots]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PortfolioChart snapshots={snapshots} trades={trades} />
       <StrategyPnLChart leaderboard={leaderboard} />
 
       {/* Collapsible Risk Summary */}
-      <div className="bg-[#12121a] border border-gray-800/50 rounded-xl overflow-hidden">
+      <div className="bg-[#1a1512] border border-[#2a2420]/40 rounded-2xl overflow-hidden">
         <button
           onClick={() => setRiskOpen(o => !o)}
-          className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-800/20 transition-colors"
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#211d19] transition-colors duration-200"
         >
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+          <h2 className="text-sm font-semibold text-[#f5e6d3] flex items-center gap-2">
+            <span className="w-2 h-2 bg-[#d9a45e] rounded-full" />
             Risk Metrics
           </h2>
           <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${riskOpen ? "rotate-180" : ""}`}
+            className={`w-4 h-4 text-[#9b8772] transition-transform ${riskOpen ? "rotate-180" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
         {riskOpen && (
-          <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
+          <div className="px-6 pb-5 grid grid-cols-2 sm:grid-cols-5 gap-4">
             {[
               { label: "Sharpe", value: riskMetrics.sharpe.toFixed(2), pos: riskMetrics.sharpe > 0 },
               { label: "Sortino", value: riskMetrics.sortino.toFixed(2), pos: riskMetrics.sortino > 0 },
@@ -74,8 +74,8 @@ export default function OverviewPanel({ snapshots, trades, leaderboard }: Overvi
               { label: "Expectancy", value: fmt(riskMetrics.expectancy), pos: riskMetrics.expectancy > 0 },
             ].map(r => (
               <div key={r.label} className="text-center">
-                <p className="text-[10px] text-gray-500 uppercase font-mono mb-1">{r.label}</p>
-                <p className={`text-sm font-mono font-bold ${r.pos ? "text-green-400" : "text-red-400"}`}>{r.value}</p>
+                <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-1">{r.label}</p>
+                <p className={`text-sm font-mono font-bold ${r.pos ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>{r.value}</p>
               </div>
             ))}
           </div>

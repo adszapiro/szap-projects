@@ -113,10 +113,10 @@ export default function QuantDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f0d0b] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400 text-sm font-mono">Connecting to trading system...</p>
+          <div className="w-16 h-16 border-2 border-[#d4a574] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#9b8772] text-sm font-mono">Connecting to trading system...</p>
         </div>
       </div>
     );
@@ -124,11 +124,11 @@ export default function QuantDashboard() {
 
   if (error && trades.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f0d0b] flex items-center justify-center">
         <div className="text-center max-w-md px-4">
-          <h2 className="text-xl font-semibold text-white mb-2">Connection Error</h2>
-          <p className="text-gray-400 text-sm mb-4">{error}</p>
-          <button onClick={() => fetchData(true)} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors text-white">
+          <h2 className="text-xl font-semibold text-[#f5e6d3] mb-2">Connection Error</h2>
+          <p className="text-[#9b8772] text-sm mb-4">{error}</p>
+          <button onClick={() => fetchData(true)} className="px-6 py-2 bg-[#d4a574] hover:bg-[#e6b889] rounded-lg text-sm font-medium transition-colors text-[#0f0d0b]">
             Try Again
           </button>
         </div>
@@ -137,7 +137,7 @@ export default function QuantDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-[#0f0d0b] text-[#f5e6d3]">
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -151,11 +151,10 @@ export default function QuantDashboard() {
         onToggleSidebar={() => setSidebarOpen(o => !o)}
       />
 
-      {/* Main content area - offset by sidebar width */}
       <div className="lg:ml-[220px]">
         <MetricsBar trades={trades} snapshots={snapshots} />
 
-        <main className="px-6 py-6">
+        <main className="px-8 py-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -185,9 +184,9 @@ export default function QuantDashboard() {
           </AnimatePresence>
         </main>
 
-        <footer className="border-t border-gray-800/50 mt-4">
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-between text-xs text-gray-500">
+        <footer className="border-t border-[#2a2420]/40 mt-4">
+          <div className="px-8 py-4">
+            <div className="flex items-center justify-between text-xs text-[#9b8772]">
               <div className="flex items-center gap-3">
                 <span className="font-mono">Paper Trading</span>
                 <span>&#8226;</span>
@@ -196,7 +195,7 @@ export default function QuantDashboard() {
                 <span>Auto-refresh 10s</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="w-2 h-2 bg-[#9cb870] rounded-full animate-pulse" />
                 <span className="font-mono">Connected</span>
               </div>
             </div>

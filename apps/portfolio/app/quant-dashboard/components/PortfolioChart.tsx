@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import type { DailySnapshot, AgentTrade } from "@/lib/supabase";
 
-const COLORS = { green: "#00C853" };
+const COLORS = { green: "#9cb870" };
 type TimeRange = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL";
 
 interface PortfolioChartProps {
@@ -80,10 +80,10 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
   }, [snapshots, trades, chartTimeRange, getTimeRangeCutoff]);
 
   return (
-    <div className="bg-[#12121a] border border-gray-800/50 rounded-xl p-6">
+    <div className="bg-[#1a1512] border border-[#2a2420]/40 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-          <span className="w-2 h-2 bg-green-500 rounded-full" />
+        <h2 className="text-sm font-semibold text-[#f5e6d3] flex items-center gap-2">
+          <span className="w-2 h-2 bg-[#9cb870] rounded-full" />
           Portfolio Value
         </h2>
         <div className="flex items-center gap-1">
@@ -91,10 +91,10 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
             <button
               key={r}
               onClick={() => setChartTimeRange(r)}
-              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors duration-200 ${
                 chartTimeRange === r
-                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
+                  ? "bg-[#9cb870]/20 text-[#9cb870] border border-[#9cb870]/30"
+                  : "text-[#9b8772] hover:text-[#c9b79c] hover:bg-[#211d19]"
               }`}
             >
               {r}
@@ -112,12 +112,12 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
                   <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-              <XAxis dataKey="date" stroke="#6b7280" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#6b7280" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#2a2420" vertical={false} />
+              <XAxis dataKey="date" stroke="#9b8772" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis stroke="#9b8772" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#1a1a24", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }}
-                labelStyle={{ color: "#9ca3af" }}
+                contentStyle={{ backgroundColor: "#1a1512", border: "1px solid #3d342b", borderRadius: "8px", fontSize: "12px" }}
+                labelStyle={{ color: "#c9b79c" }}
                 formatter={(value: number) => [`$${value.toLocaleString()}`, "Portfolio"]}
               />
               <Area type="monotone" dataKey="value" stroke={COLORS.green} strokeWidth={2} fill="url(#colorValue)" />
@@ -125,7 +125,7 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-[280px] flex items-center justify-center text-gray-500">
+        <div className="h-[280px] flex items-center justify-center text-[#9b8772]">
           <p className="text-sm">Collecting P&L data...</p>
         </div>
       )}
