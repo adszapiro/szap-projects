@@ -27,15 +27,13 @@ export default function Footer() {
         </p>
         
         {/* Back to top button */}
-        <motion.button
+        <button
           onClick={scrollToTop}
-          whileHover={{ scale: 1.1, y: -2 }}
-          whileTap={{ scale: 0.95 }}
           className="group p-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all duration-200"
           aria-label="Back to top"
         >
           <ArrowUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-        </motion.button>
+        </button>
       </div>
     </motion.footer>
   );

@@ -113,10 +113,10 @@ export default function QuantDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f0d0b] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-2 border-[#d4a574] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#9b8772] text-sm font-mono">Connecting to trading system...</p>
+          <div className="w-16 h-16 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[var(--text-muted)] text-sm font-mono">Connecting to trading system...</p>
         </div>
       </div>
     );
@@ -124,11 +124,11 @@ export default function QuantDashboard() {
 
   if (error && trades.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0f0d0b] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
         <div className="text-center max-w-md px-4">
-          <h2 className="text-xl font-semibold text-[#f5e6d3] mb-2">Connection Error</h2>
-          <p className="text-[#9b8772] text-sm mb-4">{error}</p>
-          <button onClick={() => fetchData(true)} className="px-6 py-2 bg-[#d4a574] hover:bg-[#e6b889] rounded-lg text-sm font-medium transition-colors text-[#0f0d0b]">
+          <h2 className="text-xl font-semibold text-[var(--text)] mb-2">Connection Error</h2>
+          <p className="text-[var(--text-muted)] text-sm mb-4">{error}</p>
+          <button onClick={() => fetchData(true)} className="px-6 py-2 bg-[var(--accent)] hover:bg-[var(--accent-hover)] rounded-lg text-sm font-medium transition-colors text-[var(--bg)]">
             Try Again
           </button>
         </div>
@@ -137,7 +137,7 @@ export default function QuantDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0d0b] text-[#f5e6d3]">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -184,9 +184,9 @@ export default function QuantDashboard() {
           </AnimatePresence>
         </main>
 
-        <footer className="border-t border-[#2a2420]/40 mt-4">
+        <footer className="border-t border-[var(--border)]/40 mt-4">
           <div className="px-8 py-4">
-            <div className="flex items-center justify-between text-xs text-[#9b8772]">
+            <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
               <div className="flex items-center gap-3">
                 <span className="font-mono">Paper Trading</span>
                 <span>&#8226;</span>
@@ -195,7 +195,7 @@ export default function QuantDashboard() {
                 <span>Auto-refresh 10s</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-[#9cb870] rounded-full animate-pulse" />
+                <span className="w-2 h-2 bg-[var(--positive)] rounded-full animate-pulse" />
                 <span className="font-mono">Connected</span>
               </div>
             </div>

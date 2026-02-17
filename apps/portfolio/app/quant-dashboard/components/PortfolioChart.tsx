@@ -5,8 +5,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import type { DailySnapshot, AgentTrade } from "@/lib/supabase";
-
-const COLORS = { green: "#9cb870" };
+import { useThemeColors } from "@/hooks/useThemeColors";
 type TimeRange = "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL";
 
 interface PortfolioChartProps {
@@ -15,6 +14,7 @@ interface PortfolioChartProps {
 }
 
 export default function PortfolioChart({ snapshots, trades }: PortfolioChartProps) {
+  const colors = useThemeColors();
   const [chartTimeRange, setChartTimeRange] = useState<TimeRange>("1W");
 
   const getTimeRangeCutoff = useCallback((range: TimeRange): Date => {
@@ -80,10 +80,10 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
   }, [snapshots, trades, chartTimeRange, getTimeRangeCutoff]);
 
   return (
-    <div className="bg-[#1a1512] border border-[#2a2420]/40 rounded-2xl p-6">
+    <div className="bg-[var(--card-bg)] border border-[var(--border)]/40 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-[#f5e6d3] flex items-center gap-2">
-          <span className="w-2 h-2 bg-[#9cb870] rounded-full" />
+        <h2 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2">
+          <span className="w-2 h-2 bg-[var(--positive)] rounded-full" />
           Portfolio Value
         </h2>
         <div className="flex items-center gap-1">
@@ -93,8 +93,8 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
               onClick={() => setChartTimeRange(r)}
               className={`px-2 py-1 text-xs font-medium rounded transition-colors duration-200 ${
                 chartTimeRange === r
-                  ? "bg-[#9cb870]/20 text-[#9cb870] border border-[#9cb870]/30"
-                  : "text-[#9b8772] hover:text-[#c9b79c] hover:bg-[#211d19]"
+                  ? "bg-[var(--positive)]/20 text-[var(--positive)] border border-[var(--positive)]/30"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
               }`}
             >
               {r}
@@ -108,24 +108,24 @@ export default function PortfolioChart({ snapshots, trades }: PortfolioChartProp
             <AreaChart data={pnlHistory} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <defs>
                 <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
+                  <stop offset="5%" stopColor={colors.positive} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={colors.positive} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2420" vertical={false} />
-              <XAxis dataKey="date" stroke="#9b8772" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#9b8772" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+              <XAxis dataKey="date" stroke={colors.textMuted} fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis stroke={colors.textMuted} fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#1a1512", border: "1px solid #3d342b", borderRadius: "8px", fontSize: "12px" }}
-                labelStyle={{ color: "#c9b79c" }}
+                contentStyle={{ backgroundColor: colors.cardBg, border: `1px solid ${colors.borderHover}`, borderRadius: "8px", fontSize: "12px" }}
+                labelStyle={{ color: colors.textSecondary }}
                 formatter={(value: number) => [`$${value.toLocaleString()}`, "Portfolio"]}
               />
-              <Area type="monotone" dataKey="value" stroke={COLORS.green} strokeWidth={2} fill="url(#colorValue)" />
+              <Area type="monotone" dataKey="value" stroke={colors.positive} strokeWidth={2} fill="url(#colorValue)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-[280px] flex items-center justify-center text-[#9b8772]">
+        <div className="h-[280px] flex items-center justify-center text-[var(--text-muted)]">
           <p className="text-sm">Collecting P&L data...</p>
         </div>
       )}

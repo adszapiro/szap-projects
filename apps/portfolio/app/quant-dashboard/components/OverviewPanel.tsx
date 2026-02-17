@@ -48,17 +48,17 @@ export default function OverviewPanel({ snapshots, trades, leaderboard }: Overvi
       <StrategyPnLChart leaderboard={leaderboard} />
 
       {/* Collapsible Risk Summary */}
-      <div className="bg-[#1a1512] border border-[#2a2420]/40 rounded-2xl overflow-hidden">
+      <div className="bg-[var(--card-bg)] border border-[var(--border)]/40 rounded-2xl overflow-hidden">
         <button
           onClick={() => setRiskOpen(o => !o)}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#211d19] transition-colors duration-200"
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-[var(--bg-elevated)] transition-colors duration-200"
         >
-          <h2 className="text-sm font-semibold text-[#f5e6d3] flex items-center gap-2">
-            <span className="w-2 h-2 bg-[#d9a45e] rounded-full" />
+          <h2 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2">
+            <span className="w-2 h-2 bg-[var(--warning)] rounded-full" />
             Risk Metrics
           </h2>
           <svg
-            className={`w-4 h-4 text-[#9b8772] transition-transform ${riskOpen ? "rotate-180" : ""}`}
+            className={`w-4 h-4 text-[var(--text-muted)] transition-transform ${riskOpen ? "rotate-180" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -74,8 +74,8 @@ export default function OverviewPanel({ snapshots, trades, leaderboard }: Overvi
               { label: "Expectancy", value: fmt(riskMetrics.expectancy), pos: riskMetrics.expectancy > 0 },
             ].map(r => (
               <div key={r.label} className="text-center">
-                <p className="text-[10px] text-[#9b8772] uppercase font-mono mb-1">{r.label}</p>
-                <p className={`text-sm font-mono font-bold ${r.pos ? "text-[#9cb870]" : "text-[#c67b6a]"}`}>{r.value}</p>
+                <p className="text-[10px] text-[var(--text-muted)] uppercase font-mono mb-1">{r.label}</p>
+                <p className={`text-sm font-mono font-bold ${r.pos ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>{r.value}</p>
               </div>
             ))}
           </div>
