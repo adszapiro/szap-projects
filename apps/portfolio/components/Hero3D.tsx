@@ -7,30 +7,28 @@ import * as THREE from "three";
 
 function ParticleField() {
   const ref = useRef<THREE.Points>(null);
-  
-  // Generate random positions for particles
+
   const particles = useMemo(() => {
-    const count = 2000;
+    const count = 1000;
     const positions = new Float32Array(count * 3);
-    
+
     for (let i = 0; i < count * 3; i += 3) {
-      // Spread particles in a sphere
       const radius = 3 + Math.random() * 5;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      
+
       positions[i] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i + 2] = radius * Math.cos(phi);
     }
-    
+
     return positions;
   }, []);
 
   useFrame((state) => {
     if (ref.current) {
-      ref.current.rotation.y = state.clock.elapsedTime * 0.05;
-      ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.1) * 0.1;
+      ref.current.rotation.y = state.clock.elapsedTime * 0.03;
+      ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.08) * 0.08;
     }
   });
 
@@ -38,11 +36,11 @@ function ParticleField() {
     <Points ref={ref} positions={particles} stride={3} frustumCulled={false}>
       <PointMaterial
         transparent
-        color="#8b5cf6"
-        size={0.02}
+        color="#d4a574"
+        size={0.015}
         sizeAttenuation={true}
         depthWrite={false}
-        opacity={0.8}
+        opacity={0.6}
       />
     </Points>
   );
@@ -53,20 +51,20 @@ function FloatingGeometry() {
 
   useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.x = state.clock.elapsedTime * 0.2;
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.3;
+      meshRef.current.rotation.x = state.clock.elapsedTime * 0.15;
+      meshRef.current.rotation.y = state.clock.elapsedTime * 0.2;
     }
   });
 
   return (
-    <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
+    <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.8}>
       <mesh ref={meshRef} position={[0, 0, 0]}>
         <icosahedronGeometry args={[1.2, 1]} />
         <meshBasicMaterial
-          color="#8b5cf6"
+          color="#d4a574"
           wireframe
           transparent
-          opacity={0.3}
+          opacity={0.12}
         />
       </mesh>
     </Float>
@@ -75,27 +73,27 @@ function FloatingGeometry() {
 
 function InnerParticles() {
   const ref = useRef<THREE.Points>(null);
-  
+
   const particles = useMemo(() => {
-    const count = 500;
+    const count = 300;
     const positions = new Float32Array(count * 3);
-    
+
     for (let i = 0; i < count * 3; i += 3) {
       const radius = Math.random() * 1.5;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      
+
       positions[i] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i + 2] = radius * Math.cos(phi);
     }
-    
+
     return positions;
   }, []);
 
   useFrame((state) => {
     if (ref.current) {
-      ref.current.rotation.y = -state.clock.elapsedTime * 0.1;
+      ref.current.rotation.y = -state.clock.elapsedTime * 0.08;
     }
   });
 
@@ -103,11 +101,11 @@ function InnerParticles() {
     <Points ref={ref} positions={particles} stride={3} frustumCulled={false}>
       <PointMaterial
         transparent
-        color="#06b6d4"
-        size={0.03}
+        color="#8a7a6a"
+        size={0.025}
         sizeAttenuation={true}
         depthWrite={false}
-        opacity={0.9}
+        opacity={0.7}
       />
     </Points>
   );

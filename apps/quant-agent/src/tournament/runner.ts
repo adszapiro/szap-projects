@@ -3,7 +3,7 @@
  * Executes all strategies in parallel with weighted allocation from the bandit
  */
 
-import { getActiveStrategies, saveTrade, updateTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot } from "../db.js";
+import { getActiveStrategies, saveTrade, updateTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot, getStrategyPerformance } from "../db.js";
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
@@ -47,6 +47,32 @@ function adjustPositionForVolatility(
   const clampedAdjustment = Math.max(0.25, Math.min(2, volAdjustment));
   
   return basePositionValue * clampedAdjustment;
+}
+
+/**
+ * Drawdown recovery: reduce allocation for strategies in drawdown.
+ * Returns a multiplier (0 = skip, 0.5 = half, 1 = full).
+ */
+async function getDrawdownMultiplier(strategyId: string): Promise<{ multiplier: number; reason?: string }> {
+  const perf = await getStrategyPerformance(strategyId);
+  if (!perf || perf.total_trades < 3) return { multiplier: 1 };
+
+  const maxDd = perf.max_drawdown ?? 0;
+  const winRate = perf.total_trades > 0 ? perf.winning_trades / perf.total_trades : 0.5;
+
+  // Severe drawdown (>25%) — skip this cycle entirely
+  if (maxDd > 0.25) {
+    return { multiplier: 0, reason: `drawdown ${(maxDd * 100).toFixed(1)}% > 25%` };
+  }
+  // Moderate drawdown (>15%) — halve allocation
+  if (maxDd > 0.15) {
+    return { multiplier: 0.5, reason: `drawdown ${(maxDd * 100).toFixed(1)}% > 15%` };
+  }
+  // Very low win rate with enough trades — halve allocation
+  if (perf.total_trades >= 5 && winRate < 0.25) {
+    return { multiplier: 0.5, reason: `win rate ${(winRate * 100).toFixed(0)}% < 25%` };
+  }
+  return { multiplier: 1 };
 }
 
 import { executeSandboxed, type StrategySignalResult } from "../sandbox.js";
@@ -160,9 +186,17 @@ export async function runStockTournament(): Promise<TournamentResult> {
   
   // Run each strategy
   for (const strategy of strategies) {
-    const allocation = allocations.get(strategy.id) || 0.1;
+    const baseAllocation = allocations.get(strategy.id) || 0.1;
+
+    // Drawdown recovery: reduce or skip allocation for struggling strategies
+    const { multiplier: ddMultiplier, reason: ddReason } = await getDrawdownMultiplier(strategy.id);
+    if (ddMultiplier === 0) {
+      await log("info", "strategy_skipped_drawdown", { strategy: strategy.name, reason: ddReason });
+      continue;
+    }
+    const allocation = baseAllocation * ddMultiplier;
     const maxPositionValue = accountValue * allocation;
-    
+
     for (const symbol of strategy.symbols) {
       try {
         // Get market data (1Day bars, request 300 days)
@@ -198,11 +232,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
         if (positionData && positionData.avgEntryPrice > 0 && !soldSymbols.has(symbol)) {
           const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
 
-          // Execute strategy first to check if it has a custom stop-loss
-          const preSignal = executeStrategyCode(strategy.code, data, positionData);
-          const stopLoss = preSignal.stopLoss || DEFAULT_STOP_LOSS;
-
-          if (unrealizedPnlPercent <= -stopLoss) {
+          if (unrealizedPnlPercent <= -DEFAULT_STOP_LOSS) {
             console.log(`🛑 [STOCK] STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
             try {
               const result = await placeOrder({
@@ -210,7 +240,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
                 qty: positionData.qty,
                 side: "sell",
                 strategy_id: strategy.id,
-                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${stopLoss}% threshold`,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${DEFAULT_STOP_LOSS}% threshold`,
               });
 
               soldSymbols.add(symbol);
@@ -448,9 +478,17 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
   
   // Run each strategy
   for (const strategy of strategies) {
-    const allocation = allocations.get(strategy.id) || 0.1;
+    const baseAllocation = allocations.get(strategy.id) || 0.1;
+
+    // Drawdown recovery: reduce or skip allocation for struggling strategies
+    const { multiplier: ddMultiplier, reason: ddReason } = await getDrawdownMultiplier(strategy.id);
+    if (ddMultiplier === 0) {
+      await log("info", "strategy_skipped_drawdown", { strategy: strategy.name, reason: ddReason });
+      continue;
+    }
+    const allocation = baseAllocation * ddMultiplier;
     const maxPositionValue = accountValue * allocation;
-    
+
     for (const symbol of strategy.symbols) {
       try {
         // Get market data (1Day bars, 365 days for strategies needing long lookbacks)
@@ -484,11 +522,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
         if (positionData && positionData.avgEntryPrice > 0) {
           const unrealizedPnlPercent = ((currentPrice - positionData.avgEntryPrice) / positionData.avgEntryPrice) * 100;
 
-          // Get strategy signal to check for custom stop-loss
-          const preSignal = executeStrategyCode(strategy.code, data, positionData);
-          const stopLoss = preSignal.stopLoss || DEFAULT_CRYPTO_STOP_LOSS;
-
-          if (unrealizedPnlPercent <= -stopLoss) {
+          if (unrealizedPnlPercent <= -DEFAULT_CRYPTO_STOP_LOSS) {
             console.log(`🛑 STOP-LOSS TRIGGERED: ${symbol} at ${unrealizedPnlPercent.toFixed(2)}%`);
             try {
               const orderResult = await placeSimulatedOrder({
@@ -496,7 +530,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
                 side: "sell",
                 qty: positionData.qty,
                 strategy_id: strategy.id,
-                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${stopLoss}% threshold`,
+                reasoning: `[STOP-LOSS] Unrealized loss ${unrealizedPnlPercent.toFixed(2)}% exceeded ${DEFAULT_CRYPTO_STOP_LOSS}% threshold`,
               });
               
               tradesExecuted++;
@@ -598,9 +632,18 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           tradeId = orderResult.tradeId;
           tradeExecuted = true;
           tradesExecuted++;
-          
-          // Update bandit with result (placeSimulatedOrder returns pnl for sells)
-          const pnl = orderResult.pnl || 0;
+
+          // Calculate and persist P&L
+          const pnl = orderResult.pnl || ((exitPrice - entryPrice) * positionData.qty);
+          const costBasis = entryPrice * positionData.qty;
+          const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+          await updateTrade(tradeId, {
+            status: "filled",
+            pnl,
+            pnl_percent: pnlPercent,
+            filled_at: new Date().toISOString(),
+          });
+
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
           updateStrategyRiskScore(strategy.id).catch(() => {});

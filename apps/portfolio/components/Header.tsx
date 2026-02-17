@@ -13,7 +13,6 @@ export default function Header() {
     setMounted(true);
   }, []);
 
-  // Close mobile menu on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMobileMenuOpen(false);
@@ -34,12 +33,12 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg)]/90 backdrop-blur-md border-b border-[var(--border)]">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-[var(--bg)]/90 backdrop-blur-md">
       <nav className="max-w-4xl mx-auto px-6 py-4" aria-label="Main navigation">
         <div className="flex items-center justify-between">
-          <a 
-            href="/" 
-            className="text-lg font-semibold text-[var(--text)] hover:text-[var(--text-secondary)] transition-colors"
+          <a
+            href="/"
+            className="font-[family-name:var(--font-display)] text-xl italic text-[var(--text)] hover:text-[var(--accent)] transition-colors"
             aria-label="Alex Szapiro - Home"
           >
             AS
@@ -52,7 +51,7 @@ export default function Header() {
                 <li key={link.label}>
                   <a
                     href={link.href}
-                    className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+                    className="text-sm tracking-wide text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
                   >
                     {link.label}
                   </a>
@@ -64,7 +63,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                 aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
               >
                 {resolvedTheme === "dark" ? (
@@ -82,7 +81,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+                className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
                 aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} mode`}
               >
                 {resolvedTheme === "dark" ? (
@@ -95,7 +94,7 @@ export default function Header() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer"
+              className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-menu"
@@ -111,18 +110,19 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div 
+          <div
             id="mobile-menu"
-            className="md:hidden mt-4 pb-4 border-t border-[var(--border)] pt-4"
+            className="md:hidden mt-4 pb-4 pt-4"
             role="menu"
           >
+            <div className="thin-rule mb-4" />
             <ul className="flex flex-col gap-4" role="list">
               {navLinks.map((link) => (
                 <li key={link.label} role="menuitem">
                   <a
                     href={link.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors py-2"
+                    className="block text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors py-2 tracking-wide"
                   >
                     {link.label}
                   </a>

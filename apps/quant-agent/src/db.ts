@@ -202,6 +202,16 @@ export async function updateTrade(
   if (error) throw error;
 }
 
+export async function getTodayTradeCount(): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const { count, error } = await getSupabase()
+    .from("agent_trades")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", today);
+  if (error) return 0;
+  return count || 0;
+}
+
 export async function getRecentTrades(limit: number = 50): Promise<any[]> {
   const { data, error } = await getSupabase()
     .from("agent_trades")
@@ -483,7 +493,7 @@ export async function updateStrategyPerformance(
     .update({
       alpha: newAlpha,
       beta: newBeta,
-      total_trades: data.total_trades + 1,
+      total_trades: won !== null ? data.total_trades + 1 : data.total_trades,
       winning_trades: won === true ? data.winning_trades + 1 : data.winning_trades,
       total_pnl: data.total_pnl + pnl,
       updated_at: new Date().toISOString(),

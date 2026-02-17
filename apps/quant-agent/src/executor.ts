@@ -1,4 +1,4 @@
-import { saveTrade, updateTrade, log } from "./db.js";
+import { saveTrade, updateTrade, log, getTodayTradeCount } from "./db.js";
 
 // Use a getter function to ensure env is loaded
 function getAlpacaBaseUrl(): string {
@@ -145,7 +145,17 @@ export async function placeOrder(params: {
   // Check guardrails
   const account = await getAccount();
   const maxPositionValue = account.portfolio_value * (parseFloat(process.env.AGENT_MAX_POSITION_PERCENT || "20") / 100);
-  
+
+  // Max concurrent positions limit (only for buys)
+  if (side === "buy") {
+    const positions = await getPositions();
+    const MAX_POSITIONS = parseInt(process.env.AGENT_MAX_POSITIONS || "10");
+    if (positions.length >= MAX_POSITIONS) {
+      await log("warning", "order_rejected", { reason: "max_positions", count: positions.length, max: MAX_POSITIONS });
+      throw new Error(`Max positions limit reached: ${positions.length}/${MAX_POSITIONS}`);
+    }
+  }
+
   // Get current price (handles both stocks and crypto)
   const price = await getLatestPrice(symbol);
   const orderValue = qty * price;
@@ -157,7 +167,11 @@ export async function placeOrder(params: {
 
   // Check daily trade limit
   const maxDailyTrades = parseInt(process.env.AGENT_MAX_DAILY_TRADES || "10");
-  // TODO: Check today's trade count from DB
+  const todayCount = await getTodayTradeCount();
+  if (todayCount >= maxDailyTrades) {
+    await log("warning", "order_rejected", { reason: "daily_trade_limit", todayCount, maxDailyTrades });
+    throw new Error(`Daily trade limit reached: ${todayCount}/${maxDailyTrades}`);
+  }
 
   // Place order - crypto symbols need to be formatted without /
   const orderSymbol = isCrypto ? formatCryptoSymbol(symbol) : symbol;
@@ -220,31 +234,44 @@ export async function getOrders(status: "open" | "closed" | "all" = "open"): Pro
   return alpacaRequest<any[]>(`/v2/orders?status=${status}`);
 }
 
+// Stock bars cache (avoids redundant Alpaca calls when multiple strategies trade same symbol)
+const barsCache: Map<string, { data: { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }; timestamp: number }> = new Map();
+const BARS_CACHE_TTL = 60 * 1000; // 1 minute
+
 // Market Data
 export async function getBars(
   symbol: string,
   timeframe: string = "1Day",
   limit: number = 100
 ): Promise<{ close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] }> {
+  const cacheKey = `${symbol}-${timeframe}-${limit}`;
+  const cached = barsCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < BARS_CACHE_TTL) {
+    return cached.data;
+  }
+
   // Calculate start date (go back enough days to get the requested limit)
   const daysBack = timeframe === "1Day" ? limit + 10 : Math.ceil(limit / 6.5) + 5; // Account for weekends/holidays
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - daysBack);
   const startStr = startDate.toISOString().split("T")[0];
-  
+
   const response = await alpacaRequest<any>(
     `/v2/stocks/${symbol}/bars?timeframe=${timeframe}&limit=${limit}&start=${startStr}`,
     { isData: true }
   );
 
   const bars = response.bars || [];
-  return {
+  const result = {
     close: bars.map((b: any) => b.c),
     high: bars.map((b: any) => b.h),
     low: bars.map((b: any) => b.l),
     open: bars.map((b: any) => b.o),
     volume: bars.map((b: any) => b.v),
   };
+
+  barsCache.set(cacheKey, { data: result, timestamp: Date.now() });
+  return result;
 }
 
 export async function getLatestPrice(symbol: string): Promise<number> {
@@ -380,42 +407,49 @@ async function getCryptoBarsFromCoinGecko(
   );
   const url = `${COINGECKO_API_URL}/coins/${id}/ohlc?vs_currency=usd&days=${closestDays}`;
   
-  try {
-    const response = await rateLimitedCoinGeckoFetch(url);
-    
-    if (!response.ok) {
-      // Handle rate limiting - return cached data if available
-      if (response.status === 429) {
-        console.log("⚠️ CoinGecko rate limited, using cached data if available");
-        if (cached) return cached.data;
-        // Wait and retry
-        await new Promise(resolve => setTimeout(resolve, 30000));
-        const retryResponse = await rateLimitedCoinGeckoFetch(url);
-        if (!retryResponse.ok) {
-          throw new Error(`CoinGecko API error after retry: ${retryResponse.status}`);
-        }
-        const data = await retryResponse.json();
+  // Exponential backoff: retry up to 3 times (3s, 6s, 12s)
+  const RETRY_DELAYS = [3000, 6000, 12000];
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      const response = await rateLimitedCoinGeckoFetch(url);
+
+      if (response.ok) {
+        const data = await response.json();
         const parsed = parseOhlcData(data);
         ohlcCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
         return parsed;
       }
+
+      if (response.status === 429) {
+        console.log(`⚠️ CoinGecko rate limited (attempt ${attempt + 1}/${RETRY_DELAYS.length + 1})`);
+        // Prefer stale cache over retrying
+        if (cached) return cached.data;
+        if (attempt < RETRY_DELAYS.length) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+          continue;
+        }
+      }
+
       throw new Error(`CoinGecko API error: ${response.status}`);
+    } catch (error) {
+      // Always prefer stale cache over failing
+      if (cached) {
+        console.log(`Using cached OHLC data for ${symbol} (stale)`);
+        return cached.data;
+      }
+      if (attempt < RETRY_DELAYS.length) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      console.error(`CoinGecko fetch error for ${symbol} after ${attempt + 1} attempts:`, error);
+      return { open: [], high: [], low: [], close: [], volume: [] };
     }
-    
-    const data = await response.json();
-    const parsed = parseOhlcData(data);
-    ohlcCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
-    return parsed;
-  } catch (error) {
-    // Return cached data on error
-    if (cached) {
-      console.log(`Using cached OHLC data for ${symbol}`);
-      return cached.data;
-    }
-    console.error(`CoinGecko fetch error for ${symbol}:`, error);
-    // Return empty data on error to allow graceful degradation
-    return { open: [], high: [], low: [], close: [], volume: [] };
   }
+
+  // Should not reach here, but fallback
+  if (cached) return cached.data;
+  return { open: [], high: [], low: [], close: [], volume: [] };
 }
 
 function parseOhlcData(data: number[][]): { close: number[]; high: number[]; low: number[]; open: number[]; volume: number[] } {

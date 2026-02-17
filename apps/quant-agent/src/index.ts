@@ -47,6 +47,7 @@ import { runLearningCycle, generateReport } from "./tournament/learner.js";
 import { getBanditStats, sampleAllocation } from "./bandit/thompson.js";
 import { runDailyReportCycle } from "./reports/daily.js";
 import { runHealthCheckCycle } from "./tournament/health-monitor.js";
+import { runBacktest } from "./backtester.js";
 
 // Tournament mode flag
 const TOURNAMENT_MODE = process.env.TOURNAMENT_MODE !== "false"; // Default: enabled
@@ -136,6 +137,11 @@ function validateData(data: { close: number[]; high: number[]; low: number[]; op
   if (!Array.isArray(data.low) || data.low.length < 10) return false;
   if (!Array.isArray(data.open) || data.open.length < 10) return false;
   // Volume can be 0 for crypto from CoinGecko
+  // Check for NaN/Infinity/zero prices that would corrupt strategy signals
+  if (data.close.some(v => !Number.isFinite(v) || v <= 0)) return false;
+  if (data.high.some(v => !Number.isFinite(v) || v <= 0)) return false;
+  if (data.low.some(v => !Number.isFinite(v) || v <= 0)) return false;
+  if (data.open.some(v => !Number.isFinite(v) || v <= 0)) return false;
   return true;
 }
 
@@ -562,11 +568,38 @@ Target symbols: ${symbols.join(", ")}
       symbols
     );
     
-    // TODO: Run backtest before deploying
-    // For now, mark as deployed
+    // Run rapid backtest before deploying
+    const backtestSymbol = symbols[0] || (assetClass === "crypto" ? "BTC/USD" : "SPY");
+    const backtestData = isCryptoSymbol(backtestSymbol)
+      ? await getCryptoBars(backtestSymbol, "1Day", 90)
+      : await getBars(backtestSymbol, "1Day", 90);
+
+    const backtestResult = runBacktest(debate.finalStrategy, backtestData, {
+      stopLoss: assetClass === "crypto" ? 0.12 : 0.08,
+    });
+
+    await log("info", "backtest_complete", {
+      strategy_id: strategyId,
+      sharpe: backtestResult.sharpeRatio.toFixed(2),
+      maxDrawdown: (backtestResult.maxDrawdown * 100).toFixed(1) + "%",
+      winRate: (backtestResult.winRate * 100).toFixed(1) + "%",
+      trades: backtestResult.totalTrades,
+      passed: backtestResult.passed,
+      reason: backtestResult.reason,
+    });
+
+    if (!backtestResult.passed) {
+      await updateStrategyStatus(strategyId, "paused");
+      await log("warning", "strategy_failed_backtest", {
+        strategy_id: strategyId,
+        reason: backtestResult.reason,
+      });
+      return;
+    }
+
     await updateStrategyStatus(strategyId, "deployed");
-    
-    await log("decision", "strategy_deployed", { strategy_id: strategyId, asset_class: assetClass, symbols });
+
+    await log("decision", "strategy_deployed", { strategy_id: strategyId, asset_class: assetClass, symbols, backtest: backtestResult });
     
   } catch (error) {
     await log("error", "strategy_generation_error", { error: String(error), asset_class: assetClass });
