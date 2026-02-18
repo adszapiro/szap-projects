@@ -279,6 +279,80 @@ export async function getStrategiesWithPerformance(): Promise<StrategyWithPerfor
   return merged;
 }
 
+// ML / Learning data types
+export interface ChildLearning {
+  id: string;
+  pattern: string;
+  context?: string;
+  category?: string;
+  source_model: string;
+  asset_class: "stock" | "crypto";
+  confidence: number;
+  wins: number;
+  losses: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface StrategyRiskScore {
+  strategy_id: string;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  profit_factor: number;
+  expectancy: number;
+  max_drawdown_pct: number;
+  composite_score: number;
+  trades_used: number;
+  updated_at: string;
+}
+
+// Fetch all learnings sorted by confidence
+export async function getChildLearnings(limit = 100): Promise<ChildLearning[]> {
+  const { data, error } = await supabase
+    .from("child_learnings")
+    .select("*")
+    .order("confidence", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching learnings:", error);
+    return [];
+  }
+  return data || [];
+}
+
+// Fetch strategy risk scores joined with strategy names
+export async function getStrategyRiskScores(): Promise<(StrategyRiskScore & { name?: string })[]> {
+  const [{ data: scores, error }, strategies] = await Promise.all([
+    supabase.from("strategy_risk_scores").select("*").order("composite_score", { ascending: false }),
+    getActiveStrategies(),
+  ]);
+
+  if (error) {
+    console.error("Error fetching risk scores:", error);
+    return [];
+  }
+
+  const nameMap = new Map(strategies.map(s => [s.id, s.name]));
+  return (scores || []).map(s => ({ ...s, name: nameMap.get(s.strategy_id) }));
+}
+
+// Fetch recent learning-related logs (loss_analyzed, win_analyzed, learning_cycle_completed)
+export async function getLearningLogs(limit = 50): Promise<AgentLog[]> {
+  const { data, error } = await supabase
+    .from("agent_logs")
+    .select("*")
+    .in("action", ["loss_analyzed", "win_analyzed", "learning_cycle_completed", "strategy_paused", "strategy_retired", "bandit_decay_applied"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching learning logs:", error);
+    return [];
+  }
+  return data || [];
+}
+
 // Tournament stats
 export async function getTournamentStats(): Promise<{
   totalStrategies: number;

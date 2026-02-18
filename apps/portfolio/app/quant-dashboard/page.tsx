@@ -11,12 +11,17 @@ import {
   getResearchPapers,
   getStrategiesWithPerformance,
   getTournamentStats,
+  getChildLearnings,
+  getStrategyRiskScores,
+  getLearningLogs,
   DailySnapshot,
   AgentTrade,
   Strategy,
   AgentLog,
   ResearchPaper,
   StrategyWithPerformance,
+  ChildLearning,
+  StrategyRiskScore,
 } from "@/lib/supabase";
 
 import Sidebar, { type TabId } from "./components/Sidebar";
@@ -26,6 +31,7 @@ import StrategiesPanel from "./components/StrategiesPanel";
 import TradesPanel from "./components/TradesPanel";
 import ResearchPanel from "./components/ResearchPanel";
 import LogsPanel from "./components/LogsPanel";
+import LearningsPanel from "./components/LearningsPanel";
 
 export default function QuantDashboard() {
   const [snapshots, setSnapshots] = useState<DailySnapshot[]>([]);
@@ -34,6 +40,9 @@ export default function QuantDashboard() {
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
   const [leaderboard, setLeaderboard] = useState<StrategyWithPerformance[]>([]);
+  const [learnings, setLearnings] = useState<ChildLearning[]>([]);
+  const [riskScores, setRiskScores] = useState<(StrategyRiskScore & { name?: string })[]>([]);
+  const [learningLogs, setLearningLogs] = useState<AgentLog[]>([]);
   const [tournamentStats, setTournamentStats] = useState<{
     totalStrategies: number;
     totalPapers: number;
@@ -56,7 +65,7 @@ export default function QuantDashboard() {
     if (isManualRefresh) setRefreshing(true);
     setError(null);
     try {
-      const [snapshotsData, tradesData, strategiesData, logsData, status, papersData, leaderboardData, statsData] =
+      const [snapshotsData, tradesData, strategiesData, logsData, status, papersData, leaderboardData, statsData, learningsData, riskScoresData, learningLogsData] =
         await Promise.all([
           getDailySnapshots(30),
           getRecentTrades(100),
@@ -66,6 +75,9 @@ export default function QuantDashboard() {
           getResearchPapers(),
           getStrategiesWithPerformance(),
           getTournamentStats(),
+          getChildLearnings(100),
+          getStrategyRiskScores(),
+          getLearningLogs(50),
         ]);
       setSnapshots(snapshotsData);
       setTrades(tradesData);
@@ -75,6 +87,9 @@ export default function QuantDashboard() {
       setPapers(papersData);
       setLeaderboard(leaderboardData);
       setTournamentStats(statsData);
+      setLearnings(learningsData);
+      setRiskScores(riskScoresData);
+      setLearningLogs(learningLogsData);
       setLastRefresh(new Date());
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -157,6 +172,13 @@ export default function QuantDashboard() {
               {activeTab === "trades" && <TradesPanel trades={trades} />}
               {activeTab === "research" && <ResearchPanel papers={papers} strategies={strategies} />}
               {activeTab === "logs" && <LogsPanel logs={logs} />}
+              {activeTab === "learnings" && (
+                <LearningsPanel
+                  learnings={learnings}
+                  riskScores={riskScores}
+                  learningLogs={learningLogs}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </main>
