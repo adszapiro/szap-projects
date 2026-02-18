@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+
+export const metadata: Metadata = {
+  title: "Resume",
+  description: "Resume of Alex Szapiro — Full-stack developer and Economics student at the University of Michigan.",
+};
 
 export default function ResumePage() {
   return (

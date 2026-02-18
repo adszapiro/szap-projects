@@ -869,7 +869,7 @@ async function main(): Promise<void> {
   });
   
   console.log("\n📅 Cron schedules configured:");
-  console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
+  console.log("   📈 STOCKS: Every 5 min, 9AM-4PM ET, Mon-Fri");
   console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");

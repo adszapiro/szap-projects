@@ -5,7 +5,7 @@
  * Uses real prices from CoinGecko to track simulated P&L.
  */
 
-import { saveTrade, updateTrade, log } from "./db.js";
+import { saveTrade, updateTrade, log, getSupabase } from "./db.js";
 import { getLatestCryptoPrice } from "./executor.js";
 
 // In-memory simulated positions (persisted to Supabase)
@@ -103,13 +103,12 @@ export async function placeSimulatedOrder(params: {
     // Add or update position
     const existingPosition = simulatedPositions.get(symbol);
     if (existingPosition) {
-      // Average into position
+      // Average into position — update existing, save trade record
       const totalQty = existingPosition.qty + qty;
       const totalCost = (existingPosition.qty * existingPosition.avgEntryPrice) + orderValue;
       existingPosition.qty = totalQty;
       existingPosition.avgEntryPrice = totalCost / totalQty;
-    } else {
-      // New position - save trade first to get tradeId
+
       const tradeId = await saveTrade({
         strategy_id,
         symbol,
@@ -120,16 +119,7 @@ export async function placeSimulatedOrder(params: {
         reasoning: `[SIMULATED] ${reasoning || ""}`,
         asset_class: "crypto",
       });
-      
-      simulatedPositions.set(symbol, {
-        symbol,
-        qty,
-        avgEntryPrice: price,
-        side: "long",
-        entryTime: new Date(),
-        tradeId,
-      });
-      
+
       await log("decision", "simulated_buy", {
         symbol,
         qty,
@@ -138,7 +128,39 @@ export async function placeSimulatedOrder(params: {
         remaining_cash: simulatedCash,
         reasoning,
       });
-      
+
+      return { orderId: `SIM-${Date.now()}`, tradeId, price };
+    } else {
+      // New position
+      const tradeId = await saveTrade({
+        strategy_id,
+        symbol,
+        side,
+        qty,
+        price,
+        order_id: `SIM-${Date.now()}`,
+        reasoning: `[SIMULATED] ${reasoning || ""}`,
+        asset_class: "crypto",
+      });
+
+      simulatedPositions.set(symbol, {
+        symbol,
+        qty,
+        avgEntryPrice: price,
+        side: "long",
+        entryTime: new Date(),
+        tradeId,
+      });
+
+      await log("decision", "simulated_buy", {
+        symbol,
+        qty,
+        price,
+        value: orderValue,
+        remaining_cash: simulatedCash,
+        reasoning,
+      });
+
       return { orderId: `SIM-${Date.now()}`, tradeId, price };
     }
   } else {
@@ -200,29 +222,6 @@ export async function placeSimulatedOrder(params: {
     
     return { orderId: `SIM-${Date.now()}`, tradeId, price, pnl };
   }
-  
-  // For averaged buys
-  const tradeId = await saveTrade({
-    strategy_id,
-    symbol,
-    side,
-    qty,
-    price,
-    order_id: `SIM-${Date.now()}`,
-    reasoning: `[SIMULATED] ${reasoning || ""}`,
-    asset_class: "crypto",
-  });
-  
-  await log("decision", "simulated_buy", {
-    symbol,
-    qty,
-    price,
-    value: orderValue,
-    remaining_cash: simulatedCash,
-    reasoning,
-  });
-  
-  return { orderId: `SIM-${Date.now()}`, tradeId, price };
 }
 
 /**
@@ -250,16 +249,24 @@ export async function getSimulatedDailyPnl(): Promise<{
   totalPnl: number;
 }> {
   const account = await getSimulatedAccountValue();
-  
-  // Calculate unrealized P&L
   const unrealizedPnl = account.unrealizedPnl;
-  
-  // Realized P&L would come from closed trades today
-  // For now, just use unrealized
+
+  // Sum P&L from closed crypto trades today
+  const today = new Date().toISOString().split("T")[0];
+  const { data: closedTrades } = await getSupabase()
+    .from("agent_trades")
+    .select("pnl")
+    .eq("asset_class", "crypto")
+    .eq("side", "sell")
+    .eq("status", "filled")
+    .gte("created_at", today);
+
+  const realizedPnl = (closedTrades || []).reduce((sum, t) => sum + (t.pnl || 0), 0);
+
   return {
-    realizedPnl: 0, // TODO: Sum from today's closed trades
+    realizedPnl,
     unrealizedPnl,
-    totalPnl: unrealizedPnl,
+    totalPnl: realizedPnl + unrealizedPnl,
   };
 }
 

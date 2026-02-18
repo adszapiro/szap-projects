@@ -107,10 +107,12 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   
-  // Verification (add your IDs)
-  verification: {
-    google: "your-google-verification-code",
-  },
+  // Verification (add NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION env var to enable)
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION && {
+    verification: {
+      google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    },
+  }),
 };
 
 // JSON-LD Structured Data
