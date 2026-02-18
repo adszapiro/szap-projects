@@ -99,14 +99,30 @@ export interface StrategyResult {
 }
 
 /**
- * Update learning confidence for all patterns in a strategy's asset class.
- * Called after every trade to close the feedback loop.
+ * Update learning confidence for patterns relevant to this specific trade outcome.
+ * Only updates learnings whose pattern text matches the signal context —
+ * avoids broadcasting a single trade outcome to all unrelated patterns.
  */
-async function updateLearningsFromTrade(assetClass: AssetClass, won: boolean): Promise<void> {
+async function updateLearningsFromTrade(
+  assetClass: AssetClass,
+  won: boolean,
+  signalType?: string,
+  signalReason?: string
+): Promise<void> {
   try {
-    const learnings = await getLearningsForAssetClass(assetClass, 30);
+    const learnings = await getLearningsForAssetClass(assetClass, 50);
+    const keywords = [signalType, signalReason].filter(Boolean).map(s => s!.toLowerCase());
+
     for (const learning of learnings) {
-      await updateLearningConfidence(learning.id, won);
+      const patternLower = learning.pattern.toLowerCase();
+      // Only update if pattern is relevant: matches signal type, or was created by loss_learner
+      // (loss_learner patterns are already precisely targeted by construction)
+      const isLossLearnerPattern = learning.source_model === "loss_learner";
+      const isRelevant = keywords.length === 0 || keywords.some(k => patternLower.includes(k));
+
+      if (isLossLearnerPattern || isRelevant) {
+        await updateLearningConfidence(learning.id, won);
+      }
     }
   } catch {
     // Non-critical — don't let learning updates block trading
@@ -276,7 +292,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
               updateStrategyRiskScore(strategy.id).catch(() => {});
-              updateLearningsFromTrade("stock", won).catch(() => {});
+              updateLearningsFromTrade("stock", won, "stop_loss", "stop_loss_triggered").catch(() => {});
 
               await log("warning", "stop_loss_triggered", {
                 symbol,
@@ -395,7 +411,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
             const won = isWinningTrade(pnl);
             await updateBandit(strategy.id, won, pnl);
             updateStrategyRiskScore(strategy.id).catch(() => {});
-            updateLearningsFromTrade("stock", won).catch(() => {});
+            updateLearningsFromTrade("stock", won, signal.type, signal.reason).catch(() => {});
 
             // ACTIVE LEARNING: Analyze losses in real-time
             if (!won && pnl < 0) {
@@ -555,7 +571,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
               updateStrategyRiskScore(strategy.id).catch(() => {});
-              updateLearningsFromTrade("crypto", won).catch(() => {});
+              updateLearningsFromTrade("crypto", won, "stop_loss", "stop_loss_triggered").catch(() => {});
 
               await log("warning", "stop_loss_triggered", {
                 symbol,
@@ -665,7 +681,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
           updateStrategyRiskScore(strategy.id).catch(() => {});
-          updateLearningsFromTrade("crypto", won).catch(() => {});
+          updateLearningsFromTrade("crypto", won, signal.type, signal.reason).catch(() => {});
 
           // ACTIVE LEARNING: Analyze losses in real-time
           if (!won && pnl < 0) {
