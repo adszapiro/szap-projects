@@ -118,7 +118,45 @@ export async function analyzeAndLearnFromLoss(
 }
 
 /**
- * Called when a trade wins - reset consecutive loss counter
+ * Analyze a winning trade and extract what caused it.
+ * Mirrors analyzeAndLearnFromLoss — the bot needs to know WHY it wins.
+ */
+export async function analyzeAndLearnFromWin(
+  strategyId: string,
+  symbol: string,
+  pnl: number,
+  entryPrice: number,
+  exitPrice: number,
+  holdingPeriod: number,
+  signal: { type: string; reason: string; confidence: number }
+): Promise<void> {
+  consecutiveLossTracker.set(strategyId, 0);
+
+  // Skip tiny wins (noise, not signal)
+  if (pnl < 5) return;
+
+  const priceChange = (exitPrice - entryPrice) / entryPrice;
+
+  // Classify what made this trade win
+  let pattern = "momentum_continuation";
+  if (holdingPeriod < 2 && priceChange > 0.03) pattern = "quick_breakout";
+  else if (holdingPeriod > 12) pattern = "trend_following";
+  else if (signal.confidence >= 0.8) pattern = "high_confidence_signal";
+  else if (priceChange > 0.05) pattern = "strong_directional_move";
+
+  await log("info", "win_analyzed", {
+    strategy_id: strategyId,
+    symbol,
+    pnl,
+    pattern,
+    confidence: signal.confidence,
+    holdingPeriod,
+    reason: signal.reason,
+  });
+}
+
+/**
+ * Called when a trade wins - reset consecutive loss counter (sync shortcut)
  */
 export function recordWin(strategyId: string): void {
   consecutiveLossTracker.set(strategyId, 0);

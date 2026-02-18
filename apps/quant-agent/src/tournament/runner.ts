@@ -8,7 +8,7 @@ import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } fro
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
 import { getSimulatedPosition, placeSimulatedOrder, getSimulatedAccountValue } from "../simulator.js";
-import { analyzeAndLearnFromLoss, recordWin } from "./loss-learner.js";
+import { analyzeAndLearnFromLoss, analyzeAndLearnFromWin } from "./loss-learner.js";
 import { updateStrategyRiskScore } from "../ml/risk-scorer.js";
 
 // Volatility-based position sizing
@@ -409,7 +409,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
                 signal
               );
             } else {
-              recordWin(strategy.id);
+              analyzeAndLearnFromWin(strategy.id, symbol, pnl, positionData.avgEntryPrice, currentPrice, 1, signal).catch(() => {});
             }
           } catch (error) {
             console.error(`❌ [STOCK] SELL failed for ${symbol}:`, error);
@@ -679,10 +679,10 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               signal
             );
           } else {
-            recordWin(strategy.id);
+            analyzeAndLearnFromWin(strategy.id, symbol, pnl, entryPrice, exitPrice, 1, signal).catch(() => {});
           }
         }
-        
+
         results.push({
           strategyId: strategy.id,
           strategyName: strategy.name,
