@@ -8,7 +8,7 @@
  * 4. Generates insights for strategy improvement
  */
 
-import { getSupabase, log, Strategy } from "../db.js";
+import { getSupabase, log, saveLearning, updateLearningConfidence, getLearningsForAssetClass, Strategy, AssetClass } from "../db.js";
 import { updateStrategyPerformance } from "../db.js";
 
 export interface LossAnalysis {
@@ -50,6 +50,35 @@ interface StrategyLossStats {
 const consecutiveLossTracker = new Map<string, number>();
 
 /**
+ * Upsert a pattern outcome into child_learnings.
+ * If the same pattern string already exists, update its confidence via Bayesian update.
+ * If not, create a new learning with starter confidence (0.7 for wins, 0.3 for losses).
+ */
+async function recordPatternOutcome(patternText: string, assetClass: AssetClass, won: boolean): Promise<void> {
+  // Look for existing learning with this exact pattern
+  const { data: existing } = await getSupabase()
+    .from("child_learnings")
+    .select("id")
+    .eq("pattern", patternText)
+    .eq("asset_class", assetClass)
+    .maybeSingle();
+
+  if (existing) {
+    // Update confidence on the existing row
+    await updateLearningConfidence(existing.id, won);
+  } else {
+    // Create new learning — wins start at 0.65 (promising), losses start at 0.35 (warning)
+    await saveLearning({
+      pattern: patternText,
+      category: won ? "entry" : "risk",
+      confidence: won ? 0.65 : 0.35,
+      source_model: "loss_learner",
+      asset_class: assetClass,
+    });
+  }
+}
+
+/**
  * Analyze a losing trade and take action
  */
 export async function analyzeAndLearnFromLoss(
@@ -64,11 +93,12 @@ export async function analyzeAndLearnFromLoss(
   // Get strategy info
   const { data: strategy } = await getSupabase()
     .from("strategies")
-    .select("name, code, symbols")
+    .select("name, code, symbols, asset_class")
     .eq("id", strategyId)
     .single();
 
   const strategyName = strategy?.name || "Unknown";
+  const assetClass: AssetClass = (strategy?.asset_class as AssetClass) || "stock";
 
   // Identify loss pattern
   const pattern = identifyLossPattern(entryPrice, exitPrice, pnl, holdingPeriod, signal);
@@ -107,6 +137,13 @@ export async function analyzeAndLearnFromLoss(
     consecutiveLosses,
     totalLosses: stats.totalLosses + 1,
   });
+
+  // Persist loss pattern to child_learnings so it feeds future strategy generation
+  await recordPatternOutcome(
+    `AVOID: ${pattern} — signal "${signal.type}" led to loss (${signal.reason})`,
+    assetClass,
+    false  // loss = this pattern is bad
+  ).catch(() => {});
 
   console.log(`📉 [LOSS LEARNER] ${strategyName}:`);
   console.log(`   Loss: $${pnl.toFixed(2)} on ${symbol}`);
@@ -153,6 +190,21 @@ export async function analyzeAndLearnFromWin(
     holdingPeriod,
     reason: signal.reason,
   });
+
+  // Get strategy asset class
+  const { data: strategy } = await getSupabase()
+    .from("strategies")
+    .select("asset_class")
+    .eq("id", strategyId)
+    .single();
+  const assetClass: AssetClass = (strategy?.asset_class as AssetClass) || "stock";
+
+  // Persist win pattern to child_learnings so it feeds future strategy generation
+  await recordPatternOutcome(
+    `USE: ${pattern} — signal "${signal.type}" with confidence ${signal.confidence.toFixed(2)} succeeded (${signal.reason})`,
+    assetClass,
+    true  // win = this pattern works
+  ).catch(() => {});
 }
 
 /**
