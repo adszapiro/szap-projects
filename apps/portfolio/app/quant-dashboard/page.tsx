@@ -50,7 +50,6 @@ export default function QuantDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [strategyActions, setStrategyActions] = useState<Record<string, boolean>>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fetchData = useCallback(async (isManualRefresh = false) => {
@@ -92,24 +91,6 @@ export default function QuantDashboard() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleStrategyAction = useCallback(async (strategyId: string, action: "pause" | "resume") => {
-    setStrategyActions(prev => ({ ...prev, [strategyId]: true }));
-    try {
-      const response = await fetch(`/api/strategies/${strategyId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_DASHBOARD_API_SECRET}`,
-        },
-        body: JSON.stringify({ action }),
-      });
-      if (response.ok) await fetchData();
-    } catch (err) {
-      console.error("Strategy action error:", err);
-    } finally {
-      setStrategyActions(prev => ({ ...prev, [strategyId]: false }));
-    }
-  }, [fetchData]);
 
   if (loading) {
     return (
@@ -171,11 +152,7 @@ export default function QuantDashboard() {
                 />
               )}
               {activeTab === "strategies" && (
-                <StrategiesPanel
-                  leaderboard={leaderboard}
-                  onStrategyAction={handleStrategyAction}
-                  strategyActions={strategyActions}
-                />
+                <StrategiesPanel leaderboard={leaderboard} />
               )}
               {activeTab === "trades" && <TradesPanel trades={trades} />}
               {activeTab === "research" && <ResearchPanel papers={papers} strategies={strategies} />}

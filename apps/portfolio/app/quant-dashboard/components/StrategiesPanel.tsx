@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import type { StrategyWithPerformance } from "@/lib/supabase";
 
@@ -11,11 +11,9 @@ const STRATEGY_COLORS = [
 
 interface StrategiesPanelProps {
   leaderboard: StrategyWithPerformance[];
-  onStrategyAction: (id: string, action: "pause" | "resume") => void;
-  strategyActions: Record<string, boolean>;
 }
 
-export default function StrategiesPanel({ leaderboard, onStrategyAction, strategyActions }: StrategiesPanelProps) {
+export default function StrategiesPanel({ leaderboard }: StrategiesPanelProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "stock" | "crypto">("all");
 
@@ -176,24 +174,13 @@ export default function StrategiesPanel({ leaderboard, onStrategyAction, strateg
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]/40">
+              <div className="flex items-center pt-3 border-t border-[var(--border)]/40">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${
                     strategy.status === "deployed" ? "bg-[var(--positive)]" : strategy.status === "paused" ? "bg-[var(--warning)]" : "bg-[var(--text-muted)]"
                   }`} />
                   <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase">{strategy.status}</span>
                 </div>
-                <button
-                  onClick={() => onStrategyAction(strategy.id, strategy.status === "deployed" ? "pause" : "resume")}
-                  disabled={strategyActions[strategy.id]}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors duration-200 disabled:opacity-50 ${
-                    strategy.status === "deployed"
-                      ? "bg-[var(--warning)]/20 text-[var(--warning)] hover:bg-[var(--warning)]/30"
-                      : "bg-[var(--positive)]/20 text-[var(--positive)] hover:bg-[var(--positive)]/30"
-                  }`}
-                >
-                  {strategyActions[strategy.id] ? "..." : strategy.status === "deployed" ? "Pause" : "Resume"}
-                </button>
               </div>
             </motion.div>
           );
