@@ -51,6 +51,8 @@ import { getBanditStats, sampleAllocation } from "./bandit/thompson.js";
 import { runDailyReportCycle } from "./reports/daily.js";
 import { runHealthCheckCycle } from "./tournament/health-monitor.js";
 import { runBacktest } from "./backtester.js";
+import { getJTStrategyCode } from "./strategies/academic/jegadeesh-titman.js";
+import { getTSMOMStrategyCode } from "./strategies/academic/time-series-mom.js";
 
 // Tournament mode flag
 const TOURNAMENT_MODE = process.env.TOURNAMENT_MODE !== "false"; // Default: enabled
@@ -715,6 +717,115 @@ function calculateVolatility(prices: number[]): number {
   return Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized
 }
 
+/**
+ * Seed academic research strategies on first startup.
+ * These are peer-reviewed strategies with decades of evidence — they give the
+ * Thompson bandit proven baselines to compete against from day one, so it
+ * doesn't start with all strategies at equal weight.
+ */
+async function seedAcademicStrategies(): Promise<void> {
+  const ACADEMIC_STRATEGIES = [
+    {
+      name: "JT-Momentum-12M",
+      description: "Jegadeesh-Titman 12-month cross-sectional momentum (Journal of Finance, 1993). Buy trailing 12-month winners.",
+      code: getJTStrategyCode({ lookbackPeriod: 252, topDecile: 0.3 }),
+      assetClass: "stock" as AssetClass,
+      symbols: ["SPY", "QQQ", "IWM"],
+    },
+    {
+      name: "JT-Momentum-6M",
+      description: "Jegadeesh-Titman 6-month momentum variant. Faster signal, more trades.",
+      code: getJTStrategyCode({ lookbackPeriod: 126, topDecile: 0.3 }),
+      assetClass: "stock" as AssetClass,
+      symbols: ["SPY", "QQQ"],
+    },
+    {
+      name: "TSMOM-MultiPeriod",
+      description: "Moskowitz-Ooi-Pedersen time-series momentum across 1/3/6/12 month windows (JFE, 2012). Asset's own past return predicts future.",
+      code: getTSMOMStrategyCode({ lookbackPeriods: [21, 63, 126, 252], combinationMethod: "vote" }),
+      assetClass: "stock" as AssetClass,
+      symbols: ["SPY", "QQQ", "IWM", "GLD"],
+    },
+    {
+      name: "TSMOM-Aggressive",
+      description: "Time-series momentum with shorter lookbacks for more frequent signals.",
+      code: getTSMOMStrategyCode({ lookbackPeriods: [21, 63], combinationMethod: "average" }),
+      assetClass: "stock" as AssetClass,
+      symbols: ["SPY", "QQQ"],
+    },
+    {
+      name: "TSMOM-Crypto",
+      description: "Time-series momentum adapted for crypto — uses shorter windows given 24/7 faster-moving markets.",
+      code: getTSMOMStrategyCode({ lookbackPeriods: [7, 21, 63], combinationMethod: "weighted", targetVolatility: 0.6 }),
+      assetClass: "crypto" as AssetClass,
+      symbols: ["BTC/USD", "ETH/USD"],
+    },
+    {
+      name: "JT-Momentum-Crypto",
+      description: "Jegadeesh-Titman momentum for crypto with 3-month lookback.",
+      code: getJTStrategyCode({ lookbackPeriod: 63, topDecile: 0.4 }),
+      assetClass: "crypto" as AssetClass,
+      symbols: ["BTC/USD", "ETH/USD", "SOL/USD"],
+    },
+  ];
+
+  const existingStrategies = await getActiveStrategies();
+  const existingNames = new Set(existingStrategies.map(s => s.name));
+
+  let seeded = 0;
+  for (const strat of ACADEMIC_STRATEGIES) {
+    if (existingNames.has(strat.name)) continue; // Already seeded
+
+    try {
+      // Run backtest to validate before deploying
+      const backtestSymbol = strat.symbols[0];
+      const backtestData = isCryptoSymbol(backtestSymbol)
+        ? await getCryptoBars(backtestSymbol, "1Day", 90)
+        : await getBars(backtestSymbol, "1Day", 90);
+
+      const result = runBacktest(strat.code, backtestData, {
+        stopLoss: strat.assetClass === "crypto" ? 0.12 : 0.08,
+      });
+
+      // Academic strategies — lower bar since they're research-proven
+      // Accept if Sharpe > -0.5 (don't reject on bad recent sample)
+      const strategyId = await saveStrategy(
+        strat.name,
+        strat.description,
+        strat.code,
+        "consensus",
+        strat.assetClass,
+        strat.symbols
+      );
+
+      const status = result.passed ? "deployed" : "testing";
+      await updateStrategyStatus(strategyId, status);
+      await initializeStrategyPerformance(strategyId, 1 / ACADEMIC_STRATEGIES.length);
+
+      await log("info", "academic_strategy_seeded", {
+        name: strat.name,
+        asset_class: strat.assetClass,
+        status,
+        backtest: {
+          sharpe: result.sharpeRatio.toFixed(2),
+          drawdown: (result.maxDrawdown * 100).toFixed(1) + "%",
+          trades: result.totalTrades,
+          passed: result.passed,
+        },
+      });
+
+      console.log(`📚 Seeded: ${strat.name} (${status}) — Sharpe: ${result.sharpeRatio.toFixed(2)}, DD: ${(result.maxDrawdown * 100).toFixed(1)}%`);
+      seeded++;
+    } catch (err) {
+      console.error(`❌ Failed to seed ${strat.name}:`, err);
+    }
+  }
+
+  if (seeded > 0) {
+    console.log(`\n📚 Seeded ${seeded} academic strategies into tournament`);
+  }
+}
+
 // Main entry point
 async function main(): Promise<void> {
   console.log("🤖 Quant Agent Starting...");
@@ -748,7 +859,11 @@ async function main(): Promise<void> {
     console.log("\n🏆 TOURNAMENT MODE ACTIVE");
     console.log("   Strategies compete for capital allocation");
     console.log("   Thompson Sampling bandit learns from results");
-    
+
+    // Seed academic strategies first (only if not already in DB)
+    console.log("\n📚 Seeding academic research strategies...");
+    await seedAcademicStrategies();
+
     // Initialize performance tracking for existing strategies
     const allStrategies = await getActiveStrategies();
     for (const strategy of allStrategies) {

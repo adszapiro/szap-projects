@@ -94,12 +94,42 @@ export async function getStrategyArms(): Promise<StrategyArm[]> {
 }
 
 /**
- * Sample allocation weights using Thompson Sampling
- * 
- * This is the core algorithm:
- * 1. Sample from Beta(alpha, beta) for each strategy
- * 2. Normalize samples to get allocation weights
- * 3. Higher sampled values = higher allocation
+ * Compute fractional Kelly weight for a strategy arm
+ * Uses arm's actual win rate and estimated payoff ratio from total PnL
+ */
+function kellyWeight(arm: StrategyArm): number {
+  const p = arm.winRate;
+  const q = 1 - p;
+
+  if (p <= 0 || p >= 1 || arm.totalTrades < 5) {
+    return 0; // Not enough data for Kelly
+  }
+
+  // Estimate payoff ratio from realized PnL
+  // avgTradeReturn ≈ totalPnl / totalTrades, scale to a per-dollar b ratio
+  const avgTradeReturn = arm.totalPnl / arm.totalTrades;
+  // b = avgWin / avgLoss; proxy: winning trades earned (p * totalPnl / p) vs avg loss
+  // Safer: assume avgLoss = 1 unit, avgWin = (totalPnl / wins) if positive
+  const wins = p * arm.totalTrades;
+  const losses = q * arm.totalTrades;
+  const grossWinEstimate = Math.max(avgTradeReturn * arm.totalTrades + losses, 0);
+  const avgWin = wins > 0 ? grossWinEstimate / wins : 1;
+  const avgLoss = 1.0;
+
+  const b = Math.max(avgWin / avgLoss, 0.1);
+  const kelly = (b * p - q) / b;
+
+  // Fractional Kelly (25%) capped at 0.25 per strategy
+  return Math.max(0, Math.min(0.25 * kelly, 0.25));
+}
+
+/**
+ * Sample allocation weights using Thompson Sampling + Kelly Criterion blend
+ *
+ * Algorithm:
+ * 1. Thompson: Sample Beta(alpha, beta) → softmax → 70% of final weight
+ * 2. Kelly: Fractional Kelly from win rate + PnL history → 30% of final weight
+ * 3. Apply ML risk scores on top
  */
 export async function sampleAllocation(): Promise<Map<string, number>> {
   const arms = await getStrategyArms();
@@ -108,7 +138,7 @@ export async function sampleAllocation(): Promise<Map<string, number>> {
     return new Map();
   }
 
-  // Sample from Beta distribution for each arm
+  // ── Thompson component ──────────────────────────────────────────────────
   const samples = arms.map(arm => ({
     strategyId: arm.strategyId,
     sample: sampleBeta(arm.alpha, arm.beta),
@@ -128,20 +158,52 @@ export async function sampleAllocation(): Promise<Map<string, number>> {
   }));
   const sumExp = expScaled.reduce((s, e) => s + e.exp, 0);
 
-  const weights = new Map<string, number>();
+  const thompsonWeights = new Map<string, number>();
   for (const s of expScaled) {
-    weights.set(s.id, s.exp / sumExp);
+    thompsonWeights.set(s.id, s.exp / sumExp);
   }
 
-  // Apply ML risk-adjusted scoring (bias toward better Sharpe/Sortino/PF)
-  let finalWeights = weights;
+  // ── Kelly component ─────────────────────────────────────────────────────
+  const kellyRaw = new Map<string, number>();
+  let kellySum = 0;
+  for (const arm of arms) {
+    const k = kellyWeight(arm);
+    kellyRaw.set(arm.strategyId, k);
+    kellySum += k;
+  }
+
+  const kellyWeights = new Map<string, number>();
+  if (kellySum > 0) {
+    for (const [id, k] of kellyRaw) {
+      kellyWeights.set(id, k / kellySum);
+    }
+  } else {
+    // Not enough trade data — fall back to uniform Kelly (effectively pure Thompson)
+    for (const arm of arms) {
+      kellyWeights.set(arm.strategyId, 1 / arms.length);
+    }
+  }
+
+  // ── Blend 70% Thompson + 30% Kelly ──────────────────────────────────────
+  const THOMPSON_WEIGHT = 0.70;
+  const KELLY_WEIGHT = 0.30;
+
+  const blended = new Map<string, number>();
+  for (const arm of arms) {
+    const t = thompsonWeights.get(arm.strategyId) ?? 0;
+    const k = kellyWeights.get(arm.strategyId) ?? 0;
+    blended.set(arm.strategyId, THOMPSON_WEIGHT * t + KELLY_WEIGHT * k);
+  }
+
+  // ── Apply ML risk scores ─────────────────────────────────────────────────
+  let finalWeights = blended;
   try {
     const riskScores = await getCachedRiskScores();
     if (riskScores.size > 0) {
-      finalWeights = adjustWeightsWithScores(weights, riskScores);
+      finalWeights = adjustWeightsWithScores(blended, riskScores);
     }
   } catch {
-    // Risk scorer unavailable — use pure Thompson weights
+    // Risk scorer unavailable — use blended weights
   }
 
   // Persist weights to database
