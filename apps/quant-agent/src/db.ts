@@ -223,6 +223,59 @@ export async function getRecentTrades(limit: number = 50): Promise<any[]> {
   return data || [];
 }
 
+export async function getRecentTradesForStrategy(strategyId: string, limit: number = 20): Promise<any[]> {
+  const { data, error } = await getSupabase()
+    .from("agent_trades")
+    .select("*")
+    .eq("strategy_id", strategyId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getTopPerformingStrategies(assetClass: AssetClass, limit: number = 3): Promise<Strategy[]> {
+  // Join strategies with performance data, return top performers by total_pnl
+  const { data: performances, error: perfError } = await getSupabase()
+    .from("strategy_performance")
+    .select("strategy_id, total_pnl, total_trades, winning_trades")
+    .gte("total_trades", 5)
+    .order("total_pnl", { ascending: false })
+    .limit(limit * 2); // Fetch extra to filter by asset class
+
+  if (perfError || !performances || performances.length === 0) return [];
+
+  const strategies: Strategy[] = [];
+  for (const perf of performances) {
+    const { data: strategy, error } = await getSupabase()
+      .from("strategies")
+      .select("*")
+      .eq("id", perf.strategy_id)
+      .eq("asset_class", assetClass)
+      .eq("status", "deployed")
+      .single();
+
+    if (!error && strategy) {
+      strategies.push(strategy);
+      if (strategies.length >= limit) break;
+    }
+  }
+  return strategies;
+}
+
+export async function getLearningsForAssetClass(assetClass: AssetClass, limit: number = 20): Promise<ChildLearning[]> {
+  const { data, error } = await getSupabase()
+    .from("child_learnings")
+    .select("*")
+    .eq("asset_class", assetClass)
+    .order("confidence", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return data || [];
+}
+
 export async function getTodaysTrades(): Promise<any[]> {
   const today = new Date().toISOString().split("T")[0];
   const { data, error } = await getSupabase()
@@ -484,9 +537,10 @@ export async function updateStrategyPerformance(
   }
 
   // Update bandit parameters (Thompson Sampling)
-  // Only update alpha/beta when we have a closed trade (won is not null)
-  const newAlpha = won === true ? data.alpha + 1 : data.alpha;
-  const newBeta = won === false ? data.beta + 1 : data.beta;
+  // PnL-weighted: big wins/losses count more than tiny ones (capped 0.5-3x)
+  const pnlScale = Math.min(3, Math.max(0.5, 1 + Math.abs(pnl) / 100));
+  const newAlpha = won === true ? data.alpha + pnlScale : data.alpha;
+  const newBeta = won === false ? data.beta + pnlScale : data.beta;
 
   const { error } = await getSupabase()
     .from("strategy_performance")

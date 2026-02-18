@@ -156,12 +156,18 @@ export async function decayOldData(decayRate: number = 0.01): Promise<void> {
 
   for (const perf of performances) {
     // Only decay if we have significant data
-    if (perf.total_trades < 20) continue;
-    
+    if (perf.total_trades < 10) continue;
+
+    // Accelerated decay for clearly failing strategies (<20% win rate)
+    const winRate = perf.total_trades > 0 ? perf.winning_trades / perf.total_trades : 0.5;
+    const effectiveDecay = (perf.total_trades >= 10 && winRate < 0.2)
+      ? Math.max(decayRate, 0.10) // 10% decay per cycle for failing strategies
+      : decayRate;
+
     // Exponential decay toward prior
-    const newAlpha = 1 + (perf.alpha - 1) * (1 - decayRate);
-    const newBeta = 1 + (perf.beta - 1) * (1 - decayRate);
-    
+    const newAlpha = 1 + (perf.alpha - 1) * (1 - effectiveDecay);
+    const newBeta = 1 + (perf.beta - 1) * (1 - effectiveDecay);
+
     await getSupabase()
       .from("strategy_performance")
       .update({
@@ -202,7 +208,7 @@ export async function runLearningCycle(): Promise<LearningStats> {
   const processed = await processCompletedTrades();
   
   // 2. Apply decay to prevent staleness
-  await decayOldData(0.005);  // Very slow decay
+  await decayOldData(0.02);  // Faster decay to adapt to regime changes (~2 days to halve)
   
   // 3. Calculate stats
   const stats = await getLearningStats();

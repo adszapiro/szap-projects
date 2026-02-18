@@ -165,3 +165,23 @@ ALTER TABLE strategy_risk_scores ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "anon_read_strategy_risk_scores" ON strategy_risk_scores FOR SELECT USING (true);
 CREATE INDEX IF NOT EXISTS idx_risk_scores_strategy ON strategy_risk_scores(strategy_id);
 CREATE INDEX IF NOT EXISTS idx_risk_scores_composite ON strategy_risk_scores(composite_score DESC);
+
+-- =====================
+-- RLS FIXES (v1.3)
+-- =====================
+-- Enable RLS on tables added after initial schema (flagged by Supabase Security Advisor)
+
+ALTER TABLE simulated_positions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_simulated_positions" ON simulated_positions FOR SELECT USING (true);
+
+ALTER TABLE rl_qtable ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_rl_qtable" ON rl_qtable FOR SELECT USING (true);
+
+ALTER TABLE strategy_performance ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_strategy_performance" ON strategy_performance FOR SELECT USING (true);
+
+ALTER TABLE research_papers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_research_papers" ON research_papers FOR SELECT USING (true);
+
+ALTER TABLE simulated_account ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read_simulated_account" ON simulated_account FOR SELECT USING (true);

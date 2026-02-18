@@ -101,41 +101,36 @@ export async function getStrategyArms(): Promise<StrategyArm[]> {
  * 2. Normalize samples to get allocation weights
  * 3. Higher sampled values = higher allocation
  */
-export async function sampleAllocation(
-  minWeight: number = 0.01,  // Let weak strategies get nearly nothing
-  maxWeight: number = 0.60,  // Let top performers get up to 60%
-): Promise<Map<string, number>> {
+export async function sampleAllocation(): Promise<Map<string, number>> {
   const arms = await getStrategyArms();
-  
+
   if (arms.length === 0) {
     return new Map();
   }
 
   // Sample from Beta distribution for each arm
-  const samples: Array<{ strategyId: string; sample: number }> = arms.map(arm => ({
+  const samples = arms.map(arm => ({
     strategyId: arm.strategyId,
     sample: sampleBeta(arm.alpha, arm.beta),
   }));
 
-  // Calculate total for normalization
-  const total = samples.reduce((sum, s) => sum + s.sample, 0);
-  
-  // Normalize to get weights
-  const weights = new Map<string, number>();
-  
-  for (const s of samples) {
-    let weight = total > 0 ? s.sample / total : 1 / arms.length;
-    
-    // Apply min/max constraints
-    weight = Math.max(minWeight, Math.min(maxWeight, weight));
-    
-    weights.set(s.strategyId, weight);
-  }
+  // Temperature-controlled softmax: lower T = more exploitative
+  // Winners get concentrated capital, losers get near-zero
+  const TEMPERATURE = 0.5;
+  const logSamples = samples.map(s => ({
+    id: s.strategyId,
+    logVal: Math.log(Math.max(s.sample, 1e-10)),
+  }));
+  const maxLog = Math.max(...logSamples.map(s => s.logVal));
+  const expScaled = logSamples.map(s => ({
+    id: s.id,
+    exp: Math.exp((s.logVal - maxLog) / TEMPERATURE),
+  }));
+  const sumExp = expScaled.reduce((s, e) => s + e.exp, 0);
 
-  // Re-normalize after constraints
-  const weightSum = Array.from(weights.values()).reduce((a, b) => a + b, 0);
-  for (const [id, w] of weights) {
-    weights.set(id, w / weightSum);
+  const weights = new Map<string, number>();
+  for (const s of expScaled) {
+    weights.set(s.id, s.exp / sumExp);
   }
 
   // Apply ML risk-adjusted scoring (bias toward better Sharpe/Sortino/PF)

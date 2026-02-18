@@ -3,7 +3,7 @@
  * Executes all strategies in parallel with weighted allocation from the bandit
  */
 
-import { getActiveStrategies, saveTrade, updateTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot, getStrategyPerformance } from "../db.js";
+import { getActiveStrategies, saveTrade, updateTrade, log, Strategy, AssetClass, updateStrategyPerformance, saveDailySnapshot, getStrategyPerformance, getLearningsForAssetClass, updateLearningConfidence } from "../db.js";
 import { sampleAllocation, updateBandit, getBanditStats, getCurrentWeights } from "../bandit/thompson.js";
 import { isWinningTrade } from "../bandit/metrics.js";
 import { getBars, getCryptoBars, placeOrder, getPositions, getAccount } from "../executor.js";
@@ -96,6 +96,21 @@ export interface StrategyResult {
   tradeExecuted: boolean;
   tradeId?: string;
   error?: string;
+}
+
+/**
+ * Update learning confidence for all patterns in a strategy's asset class.
+ * Called after every trade to close the feedback loop.
+ */
+async function updateLearningsFromTrade(assetClass: AssetClass, won: boolean): Promise<void> {
+  try {
+    const learnings = await getLearningsForAssetClass(assetClass, 30);
+    for (const learning of learnings) {
+      await updateLearningConfidence(learning.id, won);
+    }
+  } catch {
+    // Non-critical — don't let learning updates block trading
+  }
 }
 
 /**
@@ -245,12 +260,12 @@ export async function runStockTournament(): Promise<TournamentResult> {
 
               soldSymbols.add(symbol);
               tradesExecuted++;
-              
+
               // Calculate and save P&L
               const pnl = (currentPrice - positionData.avgEntryPrice) * positionData.qty;
               const costBasis = positionData.avgEntryPrice * positionData.qty;
               const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-              
+
               await updateTrade(result.tradeId, {
                 status: "filled",
                 pnl,
@@ -261,6 +276,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
               updateStrategyRiskScore(strategy.id).catch(() => {});
+              updateLearningsFromTrade("stock", won).catch(() => {});
 
               await log("warning", "stop_loss_triggered", {
                 symbol,
@@ -379,6 +395,7 @@ export async function runStockTournament(): Promise<TournamentResult> {
             const won = isWinningTrade(pnl);
             await updateBandit(strategy.id, won, pnl);
             updateStrategyRiskScore(strategy.id).catch(() => {});
+            updateLearningsFromTrade("stock", won).catch(() => {});
 
             // ACTIVE LEARNING: Analyze losses in real-time
             if (!won && pnl < 0) {
@@ -538,6 +555,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
               const won = isWinningTrade(pnl);
               await updateBandit(strategy.id, won, pnl);
               updateStrategyRiskScore(strategy.id).catch(() => {});
+              updateLearningsFromTrade("crypto", won).catch(() => {});
 
               await log("warning", "stop_loss_triggered", {
                 symbol,
@@ -647,6 +665,7 @@ export async function runCryptoTournament(): Promise<TournamentResult> {
           const won = isWinningTrade(pnl);
           await updateBandit(strategy.id, won, pnl);
           updateStrategyRiskScore(strategy.id).catch(() => {});
+          updateLearningsFromTrade("crypto", won).catch(() => {});
 
           // ACTIVE LEARNING: Analyze losses in real-time
           if (!won && pnl < 0) {

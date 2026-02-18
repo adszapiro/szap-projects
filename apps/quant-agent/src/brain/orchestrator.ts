@@ -57,12 +57,26 @@ export async function debateStrategy(
   assetClass: AssetClass = "stock"
 ): Promise<DebateResult> {
   const sessionId = uuidv4();
-  const patterns = await getTopPatterns(10, assetClass);
+  const patterns = await getTopPatterns(20, assetClass);
+
+  // Structure learnings by confidence: proven, avoid, suggestions
+  const mustUse = patterns.filter(p => p.confidence >= 0.7).map(p => p.pattern);
+  const mustAvoid = patterns.filter(p => p.confidence <= 0.3).map(p => p.pattern);
+  const suggestions = patterns
+    .filter(p => p.confidence > 0.3 && p.confidence < 0.7)
+    .map(p => `[${p.confidence.toFixed(2)}] ${p.pattern}`);
+
+  const learningContext = [
+    mustUse.length > 0 ? `PROVEN PATTERNS (must incorporate):\n${mustUse.map(p => `- ${p}`).join("\n")}` : "",
+    mustAvoid.length > 0 ? `FAILED PATTERNS (must avoid):\n${mustAvoid.map(p => `- ${p}`).join("\n")}` : "",
+    suggestions.length > 0 ? `SUGGESTED PATTERNS:\n${suggestions.join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+
   const patternStrs = patterns.map((p) => `[${p.confidence.toFixed(2)}] ${p.pattern}`);
-  
+
   // Add asset-specific context
   const assetContext = assetClass === "crypto" ? CRYPTO_CONTEXT : STOCK_CONTEXT;
-  const fullContext = `${assetContext}\n\n${marketContext || ""}`;
+  const fullContext = `${assetContext}\n\n${learningContext ? learningContext + "\n\n" : ""}${marketContext || ""}`;
 
   console.log(`[Debate ${sessionId.slice(0, 8)}] Starting ${assetClass.toUpperCase()} strategy debate...`);
 

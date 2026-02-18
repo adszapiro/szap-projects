@@ -118,10 +118,10 @@ export async function calculateAllRiskScores(): Promise<Map<string, StrategyRisk
 /**
  * Adjust Thompson Sampling weights using composite risk scores.
  *
- * adjustedWeight = thompsonWeight * (0.5 + 0.5 * compositeScore)
+ * adjustedWeight = thompsonWeight * (0.1 + 0.9 * compositeScore)
  *
  * - Score 1.0 (best): full Thompson weight
- * - Score 0.0 (worst): half Thompson weight
+ * - Score 0.0 (worst): 10% of Thompson weight (nearly killed)
  * - No score (too few trades): unchanged
  */
 export function adjustWeightsWithScores(
@@ -133,8 +133,8 @@ export function adjustWeightsWithScores(
   for (const [strategyId, weight] of thompsonWeights) {
     const score = riskScores.get(strategyId);
     if (score) {
-      // Scale weight by risk score: worst gets 0.5x, best gets 1.0x
-      adjusted.set(strategyId, weight * (0.5 + 0.5 * score.compositeScore));
+      // Scale weight by risk score: worst gets 0.1x, best gets 1.0x
+      adjusted.set(strategyId, weight * (0.1 + 0.9 * score.compositeScore));
     } else {
       // Not enough trades — use Thompson weight as-is
       adjusted.set(strategyId, weight);
