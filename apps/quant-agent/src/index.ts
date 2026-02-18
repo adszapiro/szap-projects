@@ -14,6 +14,9 @@ import {
   log,
   AssetClass,
   initializeStrategyPerformance,
+  getTopPerformingStrategies,
+  getStrategyPerformance,
+  getRecentTradesForStrategy,
 } from "./db.js";
 import {
   getAccount,
@@ -506,21 +509,20 @@ async function generateNewStrategy(
 ): Promise<void> {
   try {
     await log("info", "strategy_generation_started", { asset_class: assetClass, symbols });
-    
+
     // Get market context for the first symbol
     const primarySymbol = symbols[0];
     const data = await getAssetBars(primarySymbol, "1Day", 30);
-    
+
     if (data.close.length === 0) {
       await log("warning", "no_market_data", { symbol: primarySymbol });
       return;
     }
-    
+
     const lastPrice = data.close[data.close.length - 1];
     const priceChange = ((lastPrice - data.close[0]) / data.close[0]) * 100;
     const volatility = calculateVolatility(data.close);
-    
-    const assetLabel = assetClass === "crypto" ? "CRYPTO" : "STOCK";
+
     const marketContext = `
 ${primarySymbol} is ${priceChange > 0 ? "up" : "down"} ${Math.abs(priceChange).toFixed(2)}% over the last 30 days.
 Current price: $${lastPrice.toFixed(2)}
@@ -528,12 +530,46 @@ Recent volatility: ${volatility.toFixed(2)}%
 Asset class: ${assetClass.toUpperCase()}
 Target symbols: ${symbols.join(", ")}
 `;
-    
-    // Create asset-specific requirements
-    const requirements = assetClass === "crypto"
-      ? `Create a CRYPTO trading strategy for ${symbols.join(", ")}. Consider 24/7 trading, higher volatility, and crypto-specific patterns. Focus on momentum, volume, and RSI. Use appropriate stop losses for crypto's volatility.`
-      : `Create a STOCK trading strategy for ${symbols.join(", ")}. Focus on technical indicators, market hours patterns, and clear entry/exit rules with controlled risk.`;
-    
+
+    // Strategy evolution: 50% chance to evolve top performer instead of generating from scratch
+    const topStrategies = await getTopPerformingStrategies(assetClass, 3);
+    const shouldEvolve = topStrategies.length > 0 && Math.random() < 0.5;
+
+    let requirements: string;
+
+    if (shouldEvolve) {
+      const parent = topStrategies[0];
+      const perf = await getStrategyPerformance(parent.id);
+      const recentTrades = await getRecentTradesForStrategy(parent.id, 20);
+
+      const tradeLog = recentTrades
+        .filter((t: any) => t.pnl !== null)
+        .map((t: any) => `${t.symbol} ${t.side} PnL: $${t.pnl?.toFixed(2)} (${t.reasoning || "no reason"})`)
+        .join("\n");
+
+      requirements = `EVOLVE this existing ${assetClass.toUpperCase()} strategy for ${symbols.join(", ")}.
+
+PARENT STRATEGY (${parent.name}):
+Win rate: ${perf ? `${perf.winning_trades}/${perf.total_trades}` : "unknown"}
+Total PnL: $${perf ? perf.total_pnl.toFixed(2) : "0"}
+
+RECENT TRADES:
+${tradeLog || "No recent trades"}
+
+CURRENT CODE:
+\`\`\`javascript
+${parent.code}
+\`\`\`
+
+TASK: Improve this strategy. Keep what works (entry logic, indicators that perform well). Fix what doesn't (bad exits, incorrect thresholds, missing risk management). Output the improved code.`;
+
+      await log("info", "strategy_evolution", { parent: parent.name, parent_id: parent.id, asset_class: assetClass });
+    } else {
+      requirements = assetClass === "crypto"
+        ? `Create a CRYPTO trading strategy for ${symbols.join(", ")}. Consider 24/7 trading, higher volatility, and crypto-specific patterns. Focus on momentum, volume, and RSI. Use appropriate stop losses for crypto's volatility.`
+        : `Create a STOCK trading strategy for ${symbols.join(", ")}. Focus on technical indicators, market hours patterns, and clear entry/exit rules with controlled risk.`;
+    }
+
     // Run debate with asset class
     const debate = await debateStrategy(requirements, marketContext, assetClass);
     
@@ -559,9 +595,12 @@ Target symbols: ${symbols.join(", ")}
     }
     
     // Save strategy with asset class and symbols
+    const strategyName = shouldEvolve
+      ? `${assetClass.toUpperCase()}-Evolved-${Date.now()}`
+      : `${assetClass.toUpperCase()}-Strategy-${Date.now()}`;
     const strategyId = await saveStrategy(
-      `${assetClass.toUpperCase()}-Strategy-${Date.now()}`,
-      `Generated via debate. Claude: ${validation.claudeScore}/10, OpenAI: ${validation.openaiScore}/10`,
+      strategyName,
+      `${shouldEvolve ? "Evolved from top performer" : "Generated"} via debate. Claude: ${validation.claudeScore}/10, OpenAI: ${validation.openaiScore}/10`,
       debate.finalStrategy,
       "consensus",
       assetClass,
@@ -830,7 +869,7 @@ async function main(): Promise<void> {
   });
   
   console.log("\n📅 Cron schedules configured:");
-  console.log("   📈 STOCKS: Every 15 min, 9AM-4PM ET, Mon-Fri");
+  console.log("   📈 STOCKS: Every 5 min, 9AM-4PM ET, Mon-Fri");
   console.log("   🪙 CRYPTO: Every 5 min, 24/7 (AGGRESSIVE MODE)");
   console.log("   📊 Stock EOD: 4:30 PM ET, Mon-Fri");
   console.log("   📊 Crypto Daily: Midnight UTC");

@@ -1,15 +1,15 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Points, PointMaterial, Float } from "@react-three/drei";
 import * as THREE from "three";
 
-function ParticleField() {
+function ParticleField({ isMobile }: { isMobile: boolean }) {
   const ref = useRef<THREE.Points>(null);
 
   const particles = useMemo(() => {
-    const count = 1000;
+    const count = isMobile ? 300 : 1000;
     const positions = new Float32Array(count * 3);
 
     for (let i = 0; i < count * 3; i += 3) {
@@ -23,7 +23,7 @@ function ParticleField() {
     }
 
     return positions;
-  }, []);
+  }, [isMobile]);
 
   useFrame((state) => {
     if (ref.current) {
@@ -71,11 +71,11 @@ function FloatingGeometry() {
   );
 }
 
-function InnerParticles() {
+function InnerParticles({ isMobile }: { isMobile: boolean }) {
   const ref = useRef<THREE.Points>(null);
 
   const particles = useMemo(() => {
-    const count = 300;
+    const count = isMobile ? 80 : 300;
     const positions = new Float32Array(count * 3);
 
     for (let i = 0; i < count * 3; i += 3) {
@@ -89,7 +89,7 @@ function InnerParticles() {
     }
 
     return positions;
-  }, []);
+  }, [isMobile]);
 
   useFrame((state) => {
     if (ref.current) {
@@ -112,17 +112,27 @@ function InnerParticles() {
 }
 
 export default function Hero3D() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
   return (
     <div className="absolute inset-0 -z-10">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 60 }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
         style={{ background: "transparent" }}
       >
         <ambientLight intensity={0.5} />
-        <ParticleField />
+        <ParticleField isMobile={isMobile} />
         <FloatingGeometry />
-        <InnerParticles />
+        <InnerParticles isMobile={isMobile} />
       </Canvas>
     </div>
   );

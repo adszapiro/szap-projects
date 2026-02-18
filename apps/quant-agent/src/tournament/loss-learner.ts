@@ -208,18 +208,18 @@ function determineRecommendation(
   consecutiveLosses: number,
   currentLoss: number
 ): LossRecommendation {
-  // 10+ consecutive losses = pause the strategy (let it prove itself longer)
-  if (consecutiveLosses >= 10) {
+  // 7+ consecutive losses = pause the strategy
+  if (consecutiveLosses >= 7) {
     return "pause_strategy";
   }
 
   // Loss rate > 80% with significant data = consider retiring
-  if (stats.totalLosses >= 30 && stats.lossRate > 0.8) {
+  if (stats.totalLosses >= 20 && stats.lossRate > 0.8) {
     return "retire_strategy";
   }
 
-  // 5+ consecutive losses = reduce allocation
-  if (consecutiveLosses >= 5) {
+  // 3+ consecutive losses = reduce allocation
+  if (consecutiveLosses >= 3) {
     return "reduce_allocation";
   }
 
@@ -242,10 +242,11 @@ async function executeRecommendation(
 ): Promise<void> {
   switch (recommendation) {
     case "reduce_allocation": {
-      // Increase beta (reduce expected win rate) by 2
+      // Proportional weight reduction (15% cut per incident)
+      // No manual beta manipulation — let Thompson's normal updates handle it
       const { data: perf } = await getSupabase()
         .from("strategy_performance")
-        .select("beta, current_weight")
+        .select("current_weight")
         .eq("strategy_id", strategyId)
         .single();
 
@@ -253,8 +254,7 @@ async function executeRecommendation(
         await getSupabase()
           .from("strategy_performance")
           .update({
-            beta: perf.beta + 2,  // Penalize more heavily
-            current_weight: Math.max(0.01, perf.current_weight * 0.7),  // Reduce weight by 30%
+            current_weight: Math.max(0.001, perf.current_weight * 0.85),
             updated_at: new Date().toISOString(),
           })
           .eq("strategy_id", strategyId);
